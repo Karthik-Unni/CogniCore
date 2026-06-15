@@ -1,231 +1,253 @@
-# CogniCore: Open-Source Character Intelligence Engine & Silent Hollow Simulation
+# CogniCore: Developer Framework Integration Guide
 
-CogniCore is a production-grade, reusable Character Intelligence Framework and SDK designed to empower virtual agents and non-player characters (NPCs) with persistent memory, numerical emotional engines, subjective social matrices, goals, autonomous planning, and rumor-propagation mechanics. 
+CogniCore is an open-source, reusable Character Intelligence Framework designed as a modular SDK. It enables developers to integrate persistent cognitive capabilities—including vector-based memory (RAG), dynamic emotional systems, directed social relationships, and autonomous planning—into virtual agents, simulations, and non-player characters (NPCs).
 
-Instead of writing rigid, hardcoded branching dialogue trees, CogniCore models the cognitive dynamics of characters systemically. Behavior and stories emerge naturally from the systemic interactions of personality traits, emotional responses, and memories.
-
-This repository features both the reusable **CogniCore SDK** (Python library) and the **Silent Hollow Demo**, a stunning 3D isometric simulation and developer observability dashboard built with FastAPI, React, Three.js, and CSS.
+Think of CogniCore as **"Unity Physics, but for Character Decision-Making."** Instead of hardcoding branching dialogue trees or writing deterministic state machines, developers define *who* a character is (their traits, core motivations, and secrets), initialize the cognitive loop, and let systemic, believable behaviors emerge naturally.
 
 ---
 
-## 🌟 Core Philosophy: Predictable Rules, Unpredictable Stories
+## 🛠️ Module Architecture Overview
 
-In complex multi-agent setups, predictability and emergent autonomy must balance:
-* **Predictable Rules**: Emotions decay systematically over time, memory retrieval follows deterministic vector-similarity math, and rumor mutations correspond directly to character honesty vectors.
-* **Unpredictable Stories**: Every execution cycle yields a unique social outcome. Characters form alliances, hide evidence, trade secrets, lie to players, and spread gossip autonomously depending on the environment state.
-
----
-
-## 🚀 Key Features
-
-* 🧠 **Multi-Tiered Memory & RAG**: Short-term sliding-window interactions and long-term memory summary consolidation. Powered by a built-in SQLite-based vector store (supporting both cosine-similarity TF-IDF embeddings and standard API embeddings).
-* 🎭 **Decaying Emotion Engine**: Numerical tracking across 7 core dimensions (`anger`, `fear`, `suspicion`, `happiness`, `trust`, `guilt`, `confidence`) adjusting dynamically per tick based on environmental events.
-* 🕸️ **Subjective Social Matrix**: Directed relationship trackers adjusting trust, respect, fear, friendship, and rivalry between specific agents.
-* 🎯 **Goal-Driven Planner**: Dynamic priority selection with LLM-assisted or rule-based/utility-based deterministic planners.
-* 🤫 **Secret & Rumor Propagation**: Mutating gossip chains during retelling, trust-based secrets sharing, and threshold-based exposure.
-* 🎮 **Silent Hollow 3D Showcase**: A fully playable detective simulation showcasing characters walking in real time inside a stylized Three.js viewport alongside a glassmorphic intelligence dashboard.
-
----
-
-## 📂 Project Structure
+The framework is highly decoupled, allowing you to use the entire orchestrator or import specific submodules individually:
 
 ```text
-cognicore/               # Reusable Character Intelligence SDK (Core Python Library)
-├── agents/             # Autonomous agent loops and heartbeats
-├── emotions/           # Emotion state transition matrices & decay engines
-├── goals/              # Dynamic goal weight structures
-├── llm/                # LLM adapters (Gemini, OpenAI, Claude, Ollama, LoomGPT, Mock)
-├── memory/             # Short-term, long-term, social, and secret memory managers
-├── personality/        # Character personality vector traits
-├── planning/           # Utility-based and LLM-driven planners
-├── rag/                # SQLite-based vector storage and cosine-similarity searches
-├── relationships/      # Directed relationship weights and matrices
-├── rumors/             # Rumor propagation and mutation logic
-├── secrets/            # Secret management and exposure thresholds
-└── simulation/         # Multi-agent orchestrators
-
-silent_hollow_demo/      # Showcase Simulation Application
-├── backend/            # FastAPI orchestration server & game state endpoints
-└── frontend/           # Vite + React + Three.js dashboard & social graph visualizer
+cognicore/
+├── agents/             # Core Agent controller that binds all modules
+├── llm/                # Unified LLM provider client (Gemini, OpenAI, Claude, Ollama, LoomGPT)
+├── rag/                # SQLite-based local vector store (zero-dependency cosine similarity)
+├── memory/             # Tiered memory managers (Short-Term, Long-Term, Secrets)
+├── emotions/           # Decaying 7-dimensional emotion model
+├── relationships/      # Directed social graph matrices (Trust, Respect, Fear, Friendship)
+├── goals/              # Priority-based goal definitions
+├── planning/           # Action planner (Utility-based or LLM-driven)
+└── rumors/             # Rumor mutation & propagation engines
 ```
 
 ---
 
-## 🛠️ Using CogniCore as a Framework
+## 🚀 Step-by-Step Framework Integration Guide
 
-CogniCore is designed to be easily imported into any backend or game loop. Below are the two primary enterprise use cases showing how to leverage the SDK.
+Follow this guide to integrate CogniCore into your Python application, game loop, or simulation engine.
 
-### Use Case 1: Dynamic Game NPCs with Emergent Behavior
+### Step 1: Initialize the Character and Personality Trait Vector
 
-In RPGs or simulation games, you can instantiate characters with distinct personalities and let them react autonomously to players and environment events.
+A character is defined by a unique ID and a set of static personality weight parameters (`honesty`, `greed`, `aggression`, etc.) that guide planning and dialogue mutation.
 
 ```python
-from cognicore import Character, World
-from cognicore.memory.memory_types import MemoryType
+from cognicore.agents.agent import Agent
 
-# 1. Initialize character with personality traits
-marcus = Character(
+# Create an autonomous agent
+agent = Agent(
     agent_id="Marcus",
     name="Merchant Marcus",
     personality={
-        "honesty": 0.3,
-        "greed": 0.85,
-        "aggression": 0.4
+        "honesty": 0.25,     # Low honesty: likely to lie or mutate rumors
+        "greed": 0.85,       # High greed: values money, trades secrets for profit
+        "aggression": 0.40,  # Moderate aggression
     }
 )
-
-# 2. Add memories to their local SQLite vector store
-marcus.memory.add_memory(
-    content="I saw Guard Katherine hiding a bloodstained key near the forge at midnight.",
-    memory_type=MemoryType.LONG_TERM,
-    importance=8.0,
-    tags=["Katherine", "forge", "evidence"]
-)
-
-# 3. Simulate an event (e.g. being questioned or accused)
-# This triggers immediate emotional shifts and planning updates
-marcus.emotions.process_event(event_type="accused", severity=0.8)
-
-# 4. Tick the agent's cognitive heartbeat
-marcus.step()
-
-# 5. Inspect the resulting emotional state
-emotions = marcus.emotions.get_state()
-print(f"Marcus Anger: {emotions['anger']:.2f}, Suspicion: {emotions['suspicion']:.2f}")
-```
-
-### Use Case 2: Social Modeling & Information/Gossip Propagation
-
-You can model complex social environments to research how information, secrets, and rumors mutate as they spread across a network.
-
-```python
-from cognicore.rumors.rumor_system import Rumor, RumorTracker
-from cognicore.simulation.orchestrator import SimulationOrchestrator
-
-# Create a simulation world with 5 characters
-orchestrator = SimulationOrchestrator(num_agents=5)
-
-# Seed an initial rumor
-initial_rumor = Rumor(
-    id="murder_gossip",
-    origin_agent_id="Dennis",
-    about_agent_id="Marcus",
-    content="Marcus was walking near the Town Hall around midnight.",
-    timestamp=1.0
-)
-
-# Let Dennis tell Innkeeper Elena the rumor
-# Low honesty and high suspicion traits in the speaker automatically mutate the rumor text
-Elena_tracker = RumorTracker(agent_id="Elena")
- Elena_tracker.hear_rumor(
-    rumor=initial_rumor, 
-    source_agent_id="Dennis", 
-    source_trust=0.6 # High trust increases the acceptance probability
-)
-
-# Elena shares the rumor with others...
-shared_rumor = Elena_tracker.known_rumors["murder_gossip"].mutate(
-    speaker_honesty=0.4, 
-    speaker_suspicion=0.7
-)
-print("Mutated rumor text:", shared_rumor.content)
-# Output might yield: "Marcus threatened Arthur at the Town Hall around midnight."
 ```
 
 ---
 
-## 🔒 Privacy-First Design: Local Execution & LoomGPT Integration
+### Step 2: Configure the LLM Engine (Cloud or Private LoomGPT)
 
-When deploying agent simulations in enterprise environments, data privacy is critical. Sending player inputs, agent logs, or custom storylines to third-party public clouds (like OpenAI or Claude) can violate data protection policies.
-
-CogniCore supports **LoomGPT**—a secure, enterprise-grade, local, and private drop-in replacement for public LLM endpoints. 
-
-### How to use LoomGPT to Design Custom Stuff
-
-To run completely private and custom simulations, configure the unified `LLMClient` to use LoomGPT:
-
-1. **Deploy LoomGPT locally or on your private network** (typically runs on `http://localhost:8080/v1`).
-2. **Initialize the CogniCore SDK with the `loomgpt` provider**:
+The planning and interrogation modules leverage a unified `LLMClient`. For cloud setups, pass standard API credentials. For complete privacy, route calls to a local **LoomGPT** instance.
 
 ```python
 from cognicore.llm.client import LLMClient
 
-# Configure the LLM client to use your private LoomGPT server
+# 1. Cloud-Based Configuration
+cloud_config = {
+    "provider": "gemini",
+    "model": "gemini-1.5-flash",
+    "api_key": "YOUR_GEMINI_API_KEY"
+}
+
+# 2. Enterprise Privacy-First Configuration (LoomGPT Drop-In)
 private_config = {
     "provider": "loomgpt",
     "model": "loomgpt-local",
-    "api_url": "http://localhost:8080/v1",  # Local private gateway url
-    "api_key": "loomgpt-private-key-123"
+    "api_url": "http://localhost:8080/v1",  # Local/VPC private endpoint
+    "api_key": "loomgpt-private-token"       # Custom security token
 }
 
+# Instantiate and bind the client
 llm_client = LLMClient(config=private_config)
+agent.bind_llm_client(llm_client)
+```
 
-# Run a secure completion check
-response = llm_client.generate(
-    prompt="Design a custom merchant character background for a fantasy simulator.",
-    system_instruction="You are a creative game director.",
-    json_mode=True
+---
+
+### Step 3: Manage Memory and RAG Queries
+
+The memory submodule manages a rolling window of short-term interactions and indexes long-term memories inside a local SQLite-based vector store (RAG).
+
+```python
+from cognicore.memory.memory_types import MemoryType
+
+# 1. Add short-term sensory observation
+agent.memory.add_memory(
+    content="I saw Guard Katherine walking suspiciously near the Blacksmith at midnight.",
+    memory_type=MemoryType.SHORT_TERM,
+    importance=8.0,
+    tags=["Katherine", "forge", "midnight"]
 )
 
-print(response)
+# 2. Query RAG to retrieve relevant history based on current context
+relevant_memories = agent.memory.query_memories(
+    query_text="Is Katherine suspect?",
+    k=2
+)
+
+for mem in relevant_memories:
+    print(f"Retrieved: {mem['content']} (Cosine Similarity: {mem['score']:.2f})")
 ```
 
-Alternatively, set your configurations using environment variables before launching your application:
+---
+
+### Step 4: Update the Emotional State & Decay Ticks
+
+Agents possess a 7-dimensional emotion engine. Emotions shift dynamically in response to external events (e.g. being accused, receiving gifts) and decay back toward baseline values on clock ticks.
+
+```python
+# 1. Simulate an event that triggers immediate emotional spikes
+# accusing a character raises anger and suspicion, while lowering trust
+agent.emotions.process_event(
+    event_type="accused",
+    severity=0.75
+)
+
+# 2. Inspect the updated emotion values
+state = agent.emotions.get_state()
+print(f"Anger: {state['anger']:.2f}, Suspicion: {state['suspicion']:.2f}")
+
+# 3. Step the simulation clock to apply natural decay over time
+agent.emotions.decay_tick()
+```
+
+---
+
+### Step 5: Update the Subjective Relationship Matrix
+
+NPC relationship vectors (Trust, Fear, Friendship) are subjective and directed. Character A's trust in Character B changes based on direct social transactions.
+
+```python
+# 1. Register a positive interaction (e.g., getting help)
+agent.relationships.adjust_trust(
+    target_agent_id="Elena",
+    delta=0.15
+)
+
+agent.relationships.adjust_fear(
+    target_agent_id="Katherine",
+    delta=0.30  # Guard Katherine is acting aggressively, increasing fear
+)
+
+# 2. Query relationship weights to adjust dialogue tone
+trust_score = agent.relationships.get_trust("Elena")
+if trust_score > 0.5:
+    print("Marcus: 'I trust you enough to tell you what I saw.'")
+```
+
+---
+
+### Step 6: Define Custom Goals and Drive the Planner
+
+CogniCore uses a utility-based scoring function to rank active goals. Ticking the planning engine prompts the character to execute actions satisfying their highest-priority goal.
+
+```python
+from cognicore.goals.goal_types import Goal
+
+# 1. Define a custom goal
+protect_self_goal = Goal(
+    goal_id="hide_involvement",
+    title="Protect My Involvement",
+    base_priority=0.8,
+    decay_rate=0.01
+)
+agent.goals.add_goal(protect_self_goal)
+
+# 2. Step the planning loop
+# The planner evaluates emotions, goals, and memories to determine the next action
+plan = agent.planning.recalculate_plan(
+    world_state={"murder_discovered": True}
+)
+
+print(f"Marcus's Plan: {plan.reasoning}")
+# e.g., "Reasoning: Since my fear is high and the murder is discovered, I must build an alibi."
+print(f"Immediate Action: {plan.next_action.type} -> {plan.next_action.target}")
+```
+
+---
+
+### Step 7: Handle Rumors, Gossip, and Secrets Trading
+
+Rumors mutate as they propagate from agent to agent depending on the speaker's personality. Secrets are guarded and only shared if trust exceeds defined thresholds.
+
+```python
+from cognicore.rumors.rumor_system import Rumor
+
+# 1. Elena shares a rumor with Marcus
+incoming_rumor = Rumor(
+    id="scribe_murder_rumor",
+    origin_agent_id="Dennis",
+    about_agent_id="Katherine",
+    content="Katherine was arguing with Arthur near the tavern.",
+    timestamp=2.0
+)
+
+# Marcus decides whether to accept and believe the rumor based on his trust in Elena
+believed = agent.rumors.hear_rumor(
+    rumor=incoming_rumor,
+    source_agent_id="Elena",
+    source_trust=agent.relationships.get_trust("Elena")
+)
+
+# 2. Marcus propagates the rumor to a third agent
+# Because Marcus has a low honesty vector (0.25), the rumor text will mutate!
+if believed:
+    mutated_rumor = agent.rumors.get_mutated_rumor("scribe_murder_rumor")
+    print("Mutated Gossip:", mutated_rumor.content)
+    # Output: "Katherine attacked Arthur near the tavern with a dagger."
+```
+
+---
+
+## 🔒 Enterprise Privacy: Custom Simulations via LoomGPT
+
+For enterprise applications, simulations must run in completely secure environments. You can run CogniCore 100% offline, locally, or inside a private cloud VPC without transmitting data to public third-party APIs by using **LoomGPT**.
+
+LoomGPT serves as a local, private drop-in proxy. It intercepts traditional LLM payload requests and forwards them to open-source foundation models (such as Llama-3 or Mistral) running inside your secure infrastructure.
+
+### Configuring CogniCore for LoomGPT
+
+To route all agent decision-making and planning through LoomGPT, simply update the Unified LLM config environment variables:
 
 ```bash
+# Set provider to LoomGPT
 export COGNICORE_PROVIDER=loomgpt
-export COGNICORE_MODEL=loomgpt-local
+
+# Point to your local LoomGPT gateway server
 export COGNICORE_API_URL=http://localhost:8080/v1
-export COGNICORE_API_KEY=loomgpt-private-key-123
+
+# Use your private self-hosted model index
+export COGNICORE_MODEL=loomgpt-local
+
+# Provide your custom VPC security token
+export COGNICORE_API_KEY=loomgpt-private-token-123
 ```
 
----
-
-## ⚡ Quick Start: Running the Silent Hollow Demo
-
-Follow these instructions to spin up the local FastAPI server and the Vite+React 3D frontend. By default, the demo runs in **Mock mode** (offline, rule-based), meaning you do not need any paid cloud API keys to run the simulation!
-
-### Prerequisites
-
-* Python 3.10+
-* Node.js 18+
-
-### Step 1: Start the Backend (FastAPI Server)
-
-1. Navigate to the project root directory:
-   ```bash
-   pip install -r requirements.txt
-   ```
-2. Start the FastAPI development server:
-   ```bash
-   python -m uvicorn silent_hollow_demo.backend.server:app --port 8000
-   ```
-   *The server runs on `http://localhost:8000/`. It dynamically picks a murderer, weapon, clues, and seeds the SQLite memory graph.*
-
-### Step 2: Start the Frontend (Vite + React)
-
-1. Open a new terminal in the frontend directory:
-   ```bash
-   cd silent_hollow_demo/frontend
-   npm install
-   ```
-2. Launch the Vite development server:
-   ```bash
-   npm run dev
-   ```
-3. Open your browser and navigate to:
-   👉 **[http://localhost:5173/](http://localhost:5173/)**
+Now, when you instantiate `LLMClient(config=None)`, the SDK will automatically read these variables, log `"CogniCore running with LoomGPT private local model."`, and ensure complete local data privacy.
 
 ---
 
-## 🎮 How to Play & Observe the Simulation
+## 🧪 Testing the Framework
 
-1. **Observe the 3D Village**: Look at the Three.js viewport in the center. You will see characters (Mayor, Guard, Merchant, Blacksmith, etc.) walking between the locations (Tavern, Forge, Farms, Clinic).
-2. **Tick the World**: Click **Next Heartbeat** in the top right to step time forward. Watch NPCs walk, meet each other, converse, and update their goals.
-3. **Inspect Suspects**: Click any NPC card on the left Character Intelligence panel to view their real-time inner state:
-   * **Emotions Tab**: Dynamic numerical values shifting per transaction.
-   * **Social Graph Tab**: A live relationship web showing trust, respect, and fear weights.
-   * **Memories Tab**: What they have witnessed (spatial movement logs).
-4. **Interrogate Suspects**: Select an NPC card and use the **Interrogation Console** on the right side. Select quick reply prompts (e.g. *“Where were you last night?”* or *“What do you think of Marcus?”*) or ask about secrets.
-5. **Search for Clues**: Select a location and inspect it. Found evidence (e.g. Dennis's hammer, Clara's vial, bloody letters) is pinned directly on your case board.
-6. **Accuse the Suspect**: Compare alibis, track secrets, find the murderer, and click **Accuse Suspect** to solve the mystery.
+CogniCore features a comprehensive unit and integration test suite covering memory consolidation, rumor mutation, emotional decay dynamics, and secret sharing.
+
+Run the tests locally:
+```bash
+python -m unittest tests/test_cognicore.py
+```
+*All tests run inside a temporary database wrapper to isolate test states.*
