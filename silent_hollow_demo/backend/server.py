@@ -63,6 +63,7 @@ def get_state():
         "victim": world.victim_id,
         "agent_positions": world.agent_placements,
         "locations": world.locations,
+        "llm_provider": SIM_LLM_PROVIDER,
         "event_log": world.event_log[::-1],  # Reverse log for newest first
         "clues": {
             loc: [{"name": c["name"], "secrecy": c["secrecy"], "found_by": c["found_by"]} for c in cls]

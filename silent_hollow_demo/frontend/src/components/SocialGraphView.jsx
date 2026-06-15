@@ -6,7 +6,6 @@ export default function SocialGraphView({ graphData }) {
   const [edges, setEdges] = useState([]);
   const [draggedNode, setDraggedNode] = useState(null);
 
-  // Initialize node positions and velocities
   useEffect(() => {
     if (!graphData || !graphData.nodes) return;
 
@@ -14,28 +13,25 @@ export default function SocialGraphView({ graphData }) {
     const width = canvas.width;
     const height = canvas.height;
 
-    // Preserve positions of existing nodes if they match IDs
     const existingMap = new Map(nodes.map(n => [n.id, n]));
 
     const newNodes = graphData.nodes.map((n, idx) => {
       const existing = existingMap.get(n.id);
       if (existing) {
-        // Update attributes but keep position
         return { ...existing, label: n.label, role: n.role, emotions: n.emotions };
       }
       
-      // Arrange in circle initially
       const angle = (idx / graphData.nodes.length) * Math.PI * 2;
       return {
         id: n.id,
         label: n.label,
         role: n.role,
         emotions: n.emotions,
-        x: width / 2 + Math.cos(angle) * 120,
-        y: height / 2 + Math.sin(angle) * 120,
+        x: width / 2 + Math.cos(angle) * 110,
+        y: height / 2 + Math.sin(angle) * 110,
         vx: 0,
         vy: 0,
-        radius: 20
+        radius: 22
       };
     });
 
@@ -43,7 +39,6 @@ export default function SocialGraphView({ graphData }) {
     setEdges(graphData.edges || []);
   }, [graphData]);
 
-  // Simulation loop (Force-directed layout)
   useEffect(() => {
     let animationFrameId;
     
@@ -58,13 +53,12 @@ export default function SocialGraphView({ graphData }) {
       const centerX = width / 2;
       const centerY = height / 2;
 
-      // Physics Constants
-      const kRepulsion = 800; // Force pushing nodes apart
-      const kAttraction = 0.05; // Spring constant pulling linked nodes
-      const kGravity = 0.01;   // Force pulling nodes to center
-      const friction = 0.85;
+      const kRepulsion = 1000;
+      const kAttraction = 0.06;
+      const kGravity = 0.015;
+      const friction = 0.82;
 
-      // 1. Repulsion between all node pairs
+      // 1. Repel nodes
       for (let i = 0; i < nodes.length; i++) {
         const n1 = nodes[i];
         if (n1 === draggedNode) continue;
@@ -77,8 +71,7 @@ export default function SocialGraphView({ graphData }) {
           const distSq = dx * dx + dy * dy + 0.1;
           const dist = Math.sqrt(distSq);
           
-          if (dist < 180) {
-            // Repulsion force
+          if (dist < 150) {
             const force = kRepulsion / distSq;
             const fx = (dx / dist) * force;
             const fy = (dy / dist) * force;
@@ -91,7 +84,7 @@ export default function SocialGraphView({ graphData }) {
         }
       }
 
-      // 2. Attraction along edges
+      // 2. Attract connected edges
       const nodeMap = new Map(nodes.map(n => [n.id, n]));
       edges.forEach(edge => {
         const source = nodeMap.get(edge.from);
@@ -102,8 +95,7 @@ export default function SocialGraphView({ graphData }) {
           const dy = target.y - source.y;
           const dist = Math.sqrt(dx * dx + dy * dy) || 0.1;
           
-          // Resting spring length
-          const springLength = 120;
+          const springLength = 110;
           const displacement = dist - springLength;
           const force = displacement * kAttraction;
           
@@ -131,19 +123,16 @@ export default function SocialGraphView({ graphData }) {
         node.vx += dx * kGravity;
         node.vy += dy * kGravity;
         
-        // Apply velocity & friction
         node.x += node.vx;
         node.y += node.vy;
         
         node.vx *= friction;
         node.vy *= friction;
 
-        // Boundaries clamping
         node.x = Math.max(30, Math.min(width - 30, node.x));
         node.y = Math.max(30, Math.min(height - 30, node.y));
       });
 
-      // 4. Render
       renderCanvas();
       animationFrameId = requestAnimationFrame(updatePhysics);
     };
@@ -155,10 +144,10 @@ export default function SocialGraphView({ graphData }) {
       const width = canvas.width;
       const height = canvas.height;
 
-      // Clear
       ctx.clearRect(0, 0, width, height);
 
-      // Draw Edges
+      // Draw Edges with corrected color scheme
+      // Green = trust, Red = rivalry, Yellow = suspicion, Blue = friendship
       edges.forEach(edge => {
         const source = nodes.find(n => n.id === edge.from);
         const target = nodes.find(n => n.id === edge.to);
@@ -168,29 +157,28 @@ export default function SocialGraphView({ graphData }) {
           ctx.moveTo(source.x, source.y);
           ctx.lineTo(target.x, target.y);
 
-          // Get edge color based on metrics
-          let edgeColor = 'rgba(255, 255, 255, 0.1)';
+          let edgeColor = 'rgba(255, 255, 255, 0.08)';
           const friendship = edge.metrics?.friendship || 0.0;
           const trust = edge.metrics?.trust || 0.0;
           const fear = edge.metrics?.fear || 0.0;
+          const rivalry = edge.metrics?.rivalry || 0.0;
 
-          if (friendship > 0.3) {
-            edgeColor = `rgba(16, 185, 129, ${0.15 + friendship * 0.4})`; // Friendship (Green)
-          } else if (friendship < -0.3) {
-            edgeColor = `rgba(255, 74, 90, ${0.15 + Math.abs(friendship) * 0.4})`; // Enmity (Red)
+          // User requested: green = trust, red = rivalry, yellow = suspicion/fear, blue = friendship
+          if (trust > 0.3) {
+            edgeColor = `rgba(16, 185, 129, ${0.15 + trust * 0.4})`; // Trust (Green)
+          } else if (rivalry > 0.3 || friendship < -0.3) {
+            edgeColor = `rgba(255, 51, 102, ${0.15 + Math.max(rivalry, Math.abs(friendship)) * 0.4})`; // Rivalry/Hate (Red)
           } else if (fear > 0.3) {
-            edgeColor = `rgba(168, 85, 247, ${0.15 + fear * 0.4})`; // Fear (Purple)
-          } else if (trust > 0.3) {
-            edgeColor = `rgba(59, 130, 246, ${0.15 + trust * 0.4})`; // Trust (Blue)
-          } else if (trust < -0.3) {
-            edgeColor = `rgba(234, 179, 8, ${0.15 + Math.abs(trust) * 0.4})`; // Distrust (Orange)
+            edgeColor = `rgba(234, 179, 8, ${0.15 + fear * 0.4})`; // Suspicion/Fear (Yellow)
+          } else if (friendship > 0.3) {
+            edgeColor = `rgba(0, 114, 255, ${0.15 + friendship * 0.4})`; // Friendship (Blue)
           }
 
           ctx.strokeStyle = edgeColor;
-          ctx.lineWidth = 1.5;
+          ctx.lineWidth = 1.8;
           ctx.stroke();
 
-          // Draw Arrow head
+          // Arrow head
           const angle = Math.atan2(target.y - source.y, target.x - source.x);
           const arrowDist = target.radius + 6;
           const arrowX = target.x - Math.cos(angle) * arrowDist;
@@ -204,43 +192,38 @@ export default function SocialGraphView({ graphData }) {
           ctx.fillStyle = edgeColor;
           ctx.fill();
 
-          // Label edge if primary label exists
           if (edge.label) {
             const midX = (source.x + target.x) / 2;
             const midY = (source.y + target.y) / 2;
             ctx.font = '9px system-ui';
-            ctx.fillStyle = 'rgba(255,255,255,0.4)';
+            ctx.fillStyle = 'rgba(255,255,255,0.35)';
             ctx.fillText(edge.label, midX + 5, midY - 5);
           }
         }
       });
 
-      // Draw Nodes
+      // Draw Nodes (Tech aesthetic)
       nodes.forEach(node => {
-        // Shadow/glow based on dominant emotion
-        ctx.shadowBlur = 8;
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+        ctx.shadowBlur = 12;
+        ctx.shadowColor = 'rgba(0, 242, 254, 0.15)';
         
         ctx.beginPath();
         ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
-        ctx.fillStyle = '#1e2544';
+        ctx.fillStyle = '#060917';
         ctx.fill();
-        ctx.strokeStyle = '#00a2ff';
-        ctx.lineWidth = node === draggedNode ? 3 : 1.5;
+        ctx.strokeStyle = 'rgba(0, 242, 254, 0.4)';
+        ctx.lineWidth = node === draggedNode ? 3.0 : 1.5;
         ctx.stroke();
         
-        // Reset shadows
         ctx.shadowBlur = 0;
 
-        // Label
         ctx.font = 'bold 11px system-ui';
         ctx.fillStyle = '#f1f3f9';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(node.label.split(' ')[1] || node.label, node.x, node.y - 2);
 
-        // Subtitle (Role)
-        ctx.font = '8px system-ui';
+        ctx.font = '8px monospace';
         ctx.fillStyle = '#8c9bb4';
         ctx.fillText(node.role, node.x, node.y + 8);
       });
@@ -253,14 +236,12 @@ export default function SocialGraphView({ graphData }) {
     };
   }, [nodes, edges, draggedNode]);
 
-  // Interactive mouse controls
   const handleMouseDown = (e) => {
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    // Find clicked node
     const clicked = nodes.find(n => {
       const dx = n.x - x;
       const dy = n.y - y;
@@ -290,16 +271,16 @@ export default function SocialGraphView({ graphData }) {
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
       <canvas
         ref={canvasRef}
-        width={700}
+        width={720}
         height={260}
-        style={{ cursor: draggedNode ? 'grabbing' : 'grab', width: '100%', maxWidth: '700px', background: 'rgba(0,0,0,0.1)', borderRadius: '8px' }}
+        style={{ cursor: draggedNode ? 'grabbing' : 'grab', width: '100%', maxWidth: '720px', background: 'rgba(0,0,0,0.15)', borderRadius: '6px' }}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
       />
-      <div style={{ fontSize: '10px', color: '#8c9bb4', marginTop: '6px', textAlign: 'center' }}>
-        🟢 Friendship | 🔴 Enmity | 🔵 Trust | 🟡 Distrust | 🟣 Fear. Drag nodes to inspect social spacing.
+      <div style={{ fontSize: '10px', color: '#8c9bb4', marginTop: '6px', textAlign: 'center', fontFamily: 'monospace' }}>
+        🟢 Trust | 🔴 Rivalry | 🟡 Suspicion/Fear | 🔵 Friendship. Drag nodes to inspect social spacing.
       </div>
     </div>
   );
