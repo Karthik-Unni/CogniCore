@@ -51,7 +51,7 @@ Most "AI NPC" tools are dialogue engines — you send a prompt, get a reply, and
 ## 📦 Installation
 
 ```bash
-pip install cognicore
+pip install cognicore-sdk
 ```
 
 CogniCore runs **completely free and offline** out of the box — no API key required. The default mode uses rule-based planning and local SQLite embeddings.
@@ -59,11 +59,11 @@ CogniCore runs **completely free and offline** out of the box — no API key req
 Want richer dialogue and planning from a hosted or local LLM? Install the extra for your provider:
 
 ```bash
-pip install cognicore[openai]      # OpenAI / GPT models
-pip install cognicore[gemini]      # Google Gemini
-pip install cognicore[anthropic]   # Claude
-pip install cognicore[ollama]      # Local models via Ollama
-pip install cognicore[all]         # everything
+pip install cognicore-sdk[openai]      # OpenAI / GPT models
+pip install cognicore-sdk[gemini]      # Google Gemini
+pip install cognicore-sdk[anthropic]   # Claude
+pip install cognicore-sdk[ollama]      # Local models via Ollama
+pip install cognicore-sdk[all]         # everything
 ```
 
 ---
