@@ -27,6 +27,8 @@ class LLMClient:
                 self.model = "claude-3-5-sonnet-20240620"
             elif self.provider == "ollama":
                 self.model = "llama3"
+            elif self.provider == "loomgpt":
+                self.model = "loomgpt-local"
             else:
                 self.model = "mock-model"
 
@@ -47,6 +49,11 @@ class LLMClient:
             self.client = anthropic.Anthropic(api_key=self.api_key, base_url=self.api_url)
         elif self.provider == "ollama":
             self.client = self.api_url or "http://localhost:11434"
+        elif self.provider == "loomgpt":
+            import openai
+            self.client_url = self.api_url or "http://localhost:8080/v1"
+            self.client_obj = openai.OpenAI(api_key=self.api_key or "loomgpt-private-key", base_url=self.client_url)
+            logger.info("CogniCore running with LoomGPT private local model.")
         elif self.provider == "mock":
             self.client = None
             logger.info("CogniCore running in Mock LLM mode (no API key required).")
@@ -68,6 +75,8 @@ class LLMClient:
                 return self._generate_claude(prompt, system_instruction, json_mode)
             elif self.provider == "ollama":
                 return self._generate_ollama(prompt, system_instruction, json_mode)
+            elif self.provider == "loomgpt":
+                return self._generate_loomgpt(prompt, system_instruction, json_mode)
         except Exception as e:
             logger.error(f"LLM Error on provider {self.provider}: {str(e)}. Falling back to mock generator.")
             return self._generate_mock(prompt, system_instruction, json_mode)
@@ -82,6 +91,22 @@ class LLMClient:
 
         response = self.client.chat.completions.create(
             model=self.model,
+            messages=messages,
+            response_format=response_format,
+            temperature=0.7
+        )
+        return response.choices[0].message.content
+
+    def _generate_loomgpt(self, prompt: str, system_instruction: Optional[str] = None, json_mode: bool = False) -> str:
+        messages = []
+        if system_instruction:
+            messages.append({"role": "system", "content": system_instruction})
+        messages.append({"role": "user", "content": prompt})
+
+        response_format = {"type": "json_object"} if json_mode else None
+
+        response = self.client_obj.chat.completions.create(
+            model=self.model or "loomgpt-local",
             messages=messages,
             response_format=response_format,
             temperature=0.7

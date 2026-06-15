@@ -15,6 +15,8 @@ from cognicore import Character, World, SimulationOrchestrator, Goal
 class TestCogniCoreEngine(unittest.TestCase):
     
     def setUp(self):
+        import random
+        random.seed(42)
         # Create temp file for sqlite db
         self.db_fd, self.db_path = tempfile.mkstemp()
         self.vector_store = SQLiteVectorStore(db_path=self.db_path)
