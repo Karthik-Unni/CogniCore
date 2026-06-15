@@ -56,3 +56,8 @@ silent_hollow_demo/      # Showcase Simulation Application
 Refer to the [Implementation Plan](docs/implementation_plan.md) for architectural details and execution options.
 - The framework can run **locally and for free** out-of-the-box using standard rule-based planning and SQLite embeddings, requiring no LLM API keys.
 - You can plug in Gemini, OpenAI, Claude, or local Ollama instances through simple environment configurations.
+
+
+
+<img width="1912" height="1078" alt="image" src="https://github.com/user-attachments/assets/2239f684-6f28-49cc-b32f-172a419d7d9c" />
+<img width="958" height="539" alt="image" src="https://github.com/user-attachments/assets/8c3d4f00-d9f4-4c94-a685-835cdd832dcf" />
