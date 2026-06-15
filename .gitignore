@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.ipynb_checkpoints
+.pytest_cache/
+.tox/
+.venv
+venv/
+ENV/
+env/
+
+# Node.js / React
+node_modules/
+dist/
+dist-ssr/
+*.local
+.eslintcache
+
+# Databases & local data
+*.db
+*.sqlite
+.chroma/
+.qdrant/
+*.log
+
+# IDEs
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
