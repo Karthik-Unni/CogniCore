@@ -1,7 +1,7 @@
 import random
 import logging
 from typing import Dict, Any, List, Tuple
-from cognicore import Character, World, SimulationOrchestrator, SQLiteVectorStore, LLMClient, Goal
+from cognicore import Character, World, SimulationOrchestrator, SQLiteVectorStore, LLMClient, Goal, MemoryType
 
 logger = logging.getLogger("silent_hollow.scenario")
 

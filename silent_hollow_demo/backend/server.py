@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from typing import Dict, Any, List, Optional
 
 from silent_hollow_demo.backend.scenario import setup_simulation
+from cognicore import Character
 from cognicore.social_graph import SocialGraph
 from cognicore.rumors.rumor_system import Rumor
 
