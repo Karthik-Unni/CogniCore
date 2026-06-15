@@ -47,7 +47,6 @@ class Rumor(BaseModel):
                 if re.search(pattern, new_content, re.IGNORECASE):
                     new_content = re.sub(pattern, replacement, new_content, flags=re.IGNORECASE)
                     mutated = True
-                    break
             
             # If no regex matched, append a suspicious suffix
             if not mutated and random.random() < 0.5:
