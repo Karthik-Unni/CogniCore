@@ -51,7 +51,7 @@ Most "AI NPC" tools are dialogue engines — you send a prompt, get a reply, and
 ## 📦 Installation
 
 ```bash
-pip install cognicore-sdk
+pip install cognicore-sdk==0.1.0
 ```
 
 CogniCore runs **completely free and offline** out of the box — no API key required. The default mode uses rule-based planning and local SQLite embeddings.
