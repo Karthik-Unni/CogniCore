@@ -47,7 +47,7 @@ Most "AI NPC" demos are a chat window wired to an LLM — send a prompt, get a r
 ## 📦 Installation
 
 ```bash
-pip install cognicore-sdk
+pip install cognicore-sdk==0.1.1
 ```
 
 > **Note:** the published `0.1.0` package is missing `pydantic` as a declared dependency, which it requires internally. Until a patched release is out, also run `pip install pydantic`, or install from source (see below) where this is already fixed.
