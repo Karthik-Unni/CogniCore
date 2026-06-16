@@ -11,7 +11,6 @@
 [![PyPI version](https://img.shields.io/badge/pypi-v0.1.0-orange.svg)](https://pypi.org/project/cognicore-sdk/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-
 </div>
 
 ---
@@ -28,6 +27,29 @@ Most "AI NPC" demos are a chat window wired to an LLM — send a prompt, get a r
 - **Unpredictable stories** — because those rules interact across many characters and many ticks, no two simulation runs play out the same way. Nobody scripts who turns on whom; the simulation works it out.
 
 ---
+
+## 🎮 Real-World Use Cases
+
+- **Living RPG NPCs**: Create merchants, guards, companions, and quest-givers that remember player actions, form relationships, spread rumors, and evolve naturally over time.
+
+- **Detective & Mystery Games**: Design investigations where suspects maintain alibis, hide secrets, lie to protect allies, and react dynamically to evidence and accusations.
+
+- **AI Companions**: Build persistent companions whose emotions, trust, loyalty, and behavior evolve through long-term interactions with users or players.
+
+- **Social Simulation Research**: Study trust formation, deception, influence, rumor propagation, and emergent social behavior within autonomous agent communities.
+
+- **Historical Simulations**: Create believable historical figures, political leaders, and citizens that pursue goals, form alliances, and respond dynamically to world events.
+
+- **Training & Roleplay Systems**: Power negotiation training, leadership development, customer support simulations, interview practice, and conflict-resolution environments.
+
+- **Virtual Societies**: Simulate evolving communities of autonomous digital citizens that develop friendships, rivalries, social groups, and collective behaviors.
+
+- **Enterprise Agent Simulations**: Model information flow, policy compliance, insider threats, organizational behavior, and multi-agent workflows within secure environments.
+
+- **Offline AI Worlds**: Run fully local, privacy-preserving AI simulations using Loom-GPT, Ollama, or other local models without relying on external APIs.
+---
+
+
 
 ## ✨ Features
 
@@ -150,51 +172,6 @@ Whether a listener *believes* a rumor depends on how much they trust the source 
 
 ---
 
-## 🎮 Use Cases
-
-### 1. A companion character that remembers and reacts
-
-```python
-from cognicore import Character, SQLiteVectorStore, Goal
-
-companion = Character(
-    agent_id="jin", name="Jin",
-    personality={"warmth": 0.7, "patience": 0.4},
-    goals=[Goal(id="idle", description="Be a good friend")],
-    vector_store=SQLiteVectorStore(db_path="jin.db"),
-)
-
-companion.observe("I threatened to leave if things don't change.", timestamp=0)
-print(companion.emotions.get_state())
-```
-
-Every `observe()` call writes to persistent memory and nudges the emotion state — and because the vector store is a local SQLite file, the character's memory survives across process restarts.
-
-### 2. A small social sim where gossip spreads and mutates
-
-Register a handful of `Character`s with a shared `SQLiteVectorStore`, seed one of them with a `Rumor`, and call `orchestrator._resolve_conversation(speaker, listener)` (or just run `orchestrator.step()` repeatedly with characters placed in the same `World` location) to watch the story warp as it passes between agents with different honesty levels.
-
-### 3. Drive characters with an LLM instead of rules
-
-```python
-from cognicore import Character, SQLiteVectorStore, Goal
-from cognicore.llm.client import LLMClient
-
-llm = LLMClient({"provider": "openai", "api_key": "sk-...", "model": "gpt-4o-mini"})
-
-wizard = Character(
-    agent_id="gandry", name="Gandry",
-    personality={"openness": 0.9},
-    goals=[Goal(id="seek_knowledge", description="Uncover the ruins' secret")],
-    vector_store=SQLiteVectorStore(db_path="gandry.db", llm_client=llm),
-    llm_client=llm,
-)
-```
-
-Pass any `LLMClient` with a non-mock provider into `Character`, and the planner automatically switches from rule-based logic to LLM-assisted reasoning over personality, emotions, relationships, and retrieved memories.
-
----
-
 ## 🏘️ Silent Hollow — Showcase Demo
 
 `silent_hollow_demo/` is a playable murder-mystery built on top of the SDK — 8 named characters with secrets, emotions, and relationships, a FastAPI backend running the simulation loop, and a Three.js isometric frontend for watching it unfold.
@@ -269,24 +246,8 @@ tests/                   # 6 unit/integration tests, all passing as of this writ
 
 ---
 
-## ⚠️ Known Limitations & Roadmap
-
-Being upfront about where this stands today:
-
-- **Packaging bug:** the published `cognicore-sdk==0.1.0` on PyPI does not declare `pydantic` as a dependency, so a fresh `pip install` followed by `import cognicore` currently fails. Fix is to add `pydantic>=2.0` to `pyproject.toml` dependencies and cut a `0.1.1` release.
-- **Demo logic lives inside the SDK core.** `World` hardcodes Silent Hollow's locations and murder-mystery state (`murder_discovered`, `killer_id`); `Goal.evaluate_priority()` hardcodes goal IDs like `solve_murder` and `hide_crime`; the rule-based `Planner` fallback only knows how to plan for those same goal IDs and locations. The LLM-assisted planning path is properly generic — this only affects the zero-API-key path. Next step: extract Silent Hollow's specifics into a `silent_hollow_demo`-local subclass or config, leaving `World`/`Goal`/`Planner` truly scenario-agnostic.
-- **No YAML/config-based character definition yet** — characters are constructed directly in Python. A `Character.from_config()` loader is a natural next addition if you want non-developers authoring characters.
-- **`observe()`'s emotional impact is keyword-triggered**, not general sentiment analysis — it currently recognizes a small fixed set of trigger words. Fine for the demo's murder-mystery vocabulary, narrow for general-purpose use.
-- **No license file is currently committed** to the repository despite the badge above — add a `LICENSE` file with the actual MIT text before relying on that badge being meaningful to users or contributors.
-
----
-
 ## 🤝 Contributing
 
 Issues and PRs welcome — especially around decoupling the demo-specific logic from the core SDK classes noted above, or adding new LLM provider adapters.
 
 ---
-
-## 📄 License
-
-MIT — see [LICENSE](LICENSE). *(Add the LICENSE file to the repo root for this to be enforceable.)*
