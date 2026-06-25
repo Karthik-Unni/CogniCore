@@ -31,25 +31,75 @@ Most "AI NPC" demos are a chat window wired to an LLM — send a prompt, get a r
 ## 🎮 Real-World Use Cases
 
 - **Living RPG NPCs**: Create merchants, guards, companions, and quest-givers that remember player actions, form relationships, spread rumors, and evolve naturally over time.
-
 - **Detective & Mystery Games**: Design investigations where suspects maintain alibis, hide secrets, lie to protect allies, and react dynamically to evidence and accusations.
-
 - **AI Companions**: Build persistent companions whose emotions, trust, loyalty, and behavior evolve through long-term interactions with users or players.
-
 - **Social Simulation Research**: Study trust formation, deception, influence, rumor propagation, and emergent social behavior within autonomous agent communities.
-
 - **Historical Simulations**: Create believable historical figures, political leaders, and citizens that pursue goals, form alliances, and respond dynamically to world events.
-
 - **Training & Roleplay Systems**: Power negotiation training, leadership development, customer support simulations, interview practice, and conflict-resolution environments.
-
 - **Virtual Societies**: Simulate evolving communities of autonomous digital citizens that develop friendships, rivalries, social groups, and collective behaviors.
-
 - **Enterprise Agent Simulations**: Model information flow, policy compliance, insider threats, organizational behavior, and multi-agent workflows within secure environments.
-
 - **Offline AI Worlds**: Run fully local, privacy-preserving AI simulations using Loom-GPT, Ollama, or other local models without relying on external APIs.
+
 ---
 
+## 💻 Developer Integration Examples
 
+### 1. A companion character that remembers and reacts
+Every character interaction writes to persistent memory and nudges the emotion state. Because the vector store is a local SQLite file, the character's memory survives across process restarts.
+```python
+from cognicore import Character, SQLiteVectorStore, Goal
+
+companion = Character(
+    agent_id="jin", name="Jin",
+    personality={"warmth": 0.7, "patience": 0.4},
+    goals=[Goal(id="idle", description="Be a good friend")],
+    vector_store=SQLiteVectorStore(db_path="jin.db"),
+)
+
+companion.observe("I threatened to leave if things don't change.", timestamp=0)
+print(companion.emotions.get_state())
+```
+
+### 2. A small social sim where gossip spreads and mutates
+Register a handful of `Character`s with a shared `SQLiteVectorStore`, seed one of them with a `Rumor`, and call `orchestrator._resolve_conversation(speaker, listener)` (or just run `orchestrator.step()` repeatedly with characters placed in the same `World` location) to watch the story warp as it passes between agents with different honesty levels.
+
+### 3. Drive characters with an LLM instead of rules
+Pass any `LLMClient` with a non-mock provider into `Character`, and the planner automatically switches from rule-based logic to LLM-assisted reasoning over personality, emotions, relationships, and retrieved memories.
+```python
+from cognicore import Character, SQLiteVectorStore, Goal
+from cognicore.llm.client import LLMClient
+
+llm = LLMClient({"provider": "openai", "api_key": "sk-...", "model": "gpt-4o-mini"})
+
+wizard = Character(
+    agent_id="gandry", name="Gandry",
+    personality={"openness": 0.9},
+    goals=[Goal(id="seek_knowledge", description="Uncover the ruins' secret")],
+    vector_store=SQLiteVectorStore(db_path="gandry.db", llm_client=llm),
+    llm_client=llm,
+)
+```
+
+### 4. Dynamic Quest Giver NPCs (RPG / Adventure Games)
+Create game questlines that adapt automatically to your social standing. Instead of static dialog switches, NPCs evaluate their relationship metrics and current emotions before deciding to trust you with a quest or run away from you.
+```python
+# A quest giver character
+merchant = Character(
+    agent_id="merchant_marcus", name="Marcus",
+    personality={"greed": 0.9, "honesty": 0.4},
+    goals=[Goal(id="protect_vault", description="Keep treasury safe")],
+    vector_store=SQLiteVectorStore(db_path="world.db"),
+)
+
+# If trust is low, Marcus refuses to share the location of the stolen ledger
+if merchant.relationships.get_trust("player") < 0.3:
+    print("Marcus refuses to cooperate and acts defensive.")
+```
+
+### 5. Multi-Agent Group Dynamics (Behavioral Simulations)
+Study group dynamics, corporate workspaces, or safety behaviors. Seed a population of agents, introduce a single "lie" or "theft" event, and track how the social graph evolves, who forms rivalries, and how secrets leak across the network.
+
+---
 
 ## ✨ Features
 

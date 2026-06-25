@@ -3,7 +3,7 @@ import {
   ShieldAlert, Search, RefreshCw, Play, 
   MapPin, Clock, Eye, AlertCircle, Compass, HelpCircle,
   FileText, Shield, Sparkles, MessageCircle, BarChart3, Database,
-  Award, AlertTriangle, Users, Network, Share2
+  Award, AlertTriangle, Users, Network, Share2, X, Clipboard, ArrowRight
 } from 'lucide-react';
 
 import ThreeViewport from './components/ThreeViewport';
@@ -37,13 +37,29 @@ const QUICK_REPLIES = [
   "Do you have any secrets?"
 ];
 
+const NPC_LOCATIONS = {
+  "Alden": "Town Hall",
+  "Katherine": "Town Hall",
+  "Marcus": "Merchant Store",
+  "Dennis": "Blacksmith",
+  "Clara": "Doctor Clinic",
+  "Elena": "Tavern",
+  "Silas": "Farms",
+  "Gerald": "Forest Edge"
+};
+
 export default function App() {
   // Global States
   const [worldState, setWorldState] = useState(null);
   const [agents, setAgents] = useState({});
   const [socialGraph, setSocialGraph] = useState(null);
   const [selectedAgentId, setSelectedAgentId] = useState("Marcus");
-  const [activeSubView, setActiveSubView] = useState("dashboard"); // "dashboard", "clues", "interrogate", "social"
+  
+  // Interactive HUD States
+  const [nearNPCId, setNearNPCId] = useState(null);
+  const [showInteractionModal, setShowInteractionModal] = useState(false);
+  const [showNotebook, setShowNotebook] = useState(false);
+  const [notebookTab, setNotebookTab] = useState("evidence"); // "evidence", "suspects", "social", "logs"
   
   // Interaction States
   const [chatLogs, setChatLogs] = useState({}); // agent_id -> list of messages
@@ -52,12 +68,53 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [gameResult, setGameResult] = useState(null);
 
+  // Messenger Game States
+  const [score, setScore] = useState(0);
+  const [activeDeliveryNPC, setActiveDeliveryNPC] = useState("Elena");
+  const [deliveredNPCHistory, setDeliveredNPCHistory] = useState([]);
+
   // 1. Initial Load & Sync
   useEffect(() => {
     fetchData();
     const interval = setInterval(fetchData, 4000);
     return () => clearInterval(interval);
   }, []);
+
+  // Manage keyboard focus for WASD movement
+  useEffect(() => {
+    window.focus();
+  }, []);
+
+  useEffect(() => {
+    if (!showInteractionModal && !showNotebook && !gameResult) {
+      window.focus();
+    }
+  }, [showInteractionModal, showNotebook, gameResult]);
+
+  useEffect(() => {
+    const handleDocumentClick = (e) => {
+      if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+        window.focus();
+      }
+    };
+    document.addEventListener('click', handleDocumentClick);
+    return () => document.removeEventListener('click', handleDocumentClick);
+  }, []);
+
+  // Keyboard shortcut listener: E to interact
+  useEffect(() => {
+    const handleGlobalKeyDown = (e) => {
+      if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') {
+        return;
+      }
+      if ((e.key === 'e' || e.key === 'E') && nearNPCId && !showInteractionModal && !showNotebook && !gameResult) {
+        setSelectedAgentId(nearNPCId);
+        setShowInteractionModal(true);
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [nearNPCId, showInteractionModal, showNotebook, gameResult]);
 
   const fetchData = async () => {
     try {
@@ -107,6 +164,9 @@ export default function App() {
     setIsLoading(true);
     setChatLogs({});
     setGameResult(null);
+    setShowInteractionModal(false);
+    setShowNotebook(false);
+    setScore(0);
     try {
       const res = await fetch(`${API_BASE}/reset`, { method: "POST" });
       await res.json();
@@ -117,22 +177,60 @@ export default function App() {
     setIsLoading(false);
   };
 
+  const handleDeliveryComplete = async (npcId) => {
+    setScore(prev => prev + 100);
+    setDeliveredNPCHistory(prev => [...prev, npcId]);
+    
+    const npcLocation = NPC_LOCATIONS[npcId] || "Marketplace";
+    try {
+      const searchRes = await fetch(`${API_BASE}/player/search`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ location: npcLocation })
+      });
+      const searchData = await searchRes.json();
+      
+      let alertMsg = `📦 DELIVERED! Package successfully delivered to ${agents[npcId]?.name || npcId}'s mailbox!\n+100 Points!`;
+      
+      if (searchData.clues_found && searchData.clues_found.length > 0) {
+        alertMsg += `\n\n🔎 CLUE UNLOCKED: You inspected the area and found: "${searchData.clues_found[0].name}"!\n${searchData.clues_found[0].description}`;
+      } else {
+        alertMsg += `\n\n(No new physical evidence was discovered at this location, but the character trusts you more!)`;
+      }
+      
+      alert(alertMsg);
+      fetchData(); // Sync updated clues and relationship graphs
+      
+      // Pick next target
+      const npcIds = Object.keys(NPC_LOCATIONS);
+      const filtered = npcIds.filter(id => id !== npcId);
+      const nextNPC = filtered[Math.floor(Math.random() * filtered.length)];
+      setActiveDeliveryNPC(nextNPC);
+      
+    } catch (e) {
+      console.error("Error completing delivery:", e);
+    }
+  };
+
   // 3. Dialogue Interrogation
   const sendChatMessage = async (msgText) => {
-    const newLogs = [...(chatLogs[selectedAgentId] || []), { sender: "player", text: msgText }];
-    setChatLogs(prev => ({ ...prev, [selectedAgentId]: newLogs }));
+    const activeTarget = showInteractionModal ? selectedAgentId : nearNPCId;
+    if (!activeTarget) return;
+
+    const newLogs = [...(chatLogs[activeTarget] || []), { sender: "player", text: msgText }];
+    setChatLogs(prev => ({ ...prev, [activeTarget]: newLogs }));
 
     try {
       const res = await fetch(`${API_BASE}/player/talk`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ agent_id: selectedAgentId, message: msgText })
+        body: JSON.stringify({ agent_id: activeTarget, message: msgText })
       });
       const data = await res.json();
       
       setChatLogs(prev => ({
         ...prev,
-        [selectedAgentId]: [...(prev[selectedAgentId] || []), { sender: "npc", text: data.response }]
+        [activeTarget]: [...(prev[activeTarget] || []), { sender: "npc", text: data.response }]
       }));
       
       fetchData(); // Sync updated emotions/relationships
@@ -149,11 +247,12 @@ export default function App() {
   };
 
   // 4. Clue Search
-  const handleSearchLocation = async () => {
-    const activeNPC = agents[selectedAgentId];
+  const handleSearchLocation = async (targetId) => {
+    const inspectTarget = targetId || selectedAgentId;
+    const activeNPC = agents[inspectTarget];
     if (!activeNPC || !worldState) return;
     
-    const loc = worldState.agent_positions[selectedAgentId] || "Marketplace";
+    const loc = worldState.agent_positions[inspectTarget] || "Marketplace";
     try {
       const res = await fetch(`${API_BASE}/player/search`, {
         method: "POST",
@@ -168,8 +267,8 @@ export default function App() {
         // Log to chat
         setChatLogs(prev => ({
           ...prev,
-          [selectedAgentId]: [
-            ...(prev[selectedAgentId] || []), 
+          [inspectTarget]: [
+            ...(prev[inspectTarget] || []), 
             { sender: "system", text: `🔎 EVIDENCE RECORDED: Found ${data.clues_found[0].name} at the ${loc}.` }
           ]
         }));
@@ -183,8 +282,9 @@ export default function App() {
   };
 
   // 5. Accusation
-  const handleAccuse = async () => {
-    const activeNPC = agents[selectedAgentId];
+  const handleAccuse = async (targetId) => {
+    const accuseTarget = targetId || selectedAgentId;
+    const activeNPC = agents[accuseTarget];
     if (!activeNPC) return;
     
     if (!window.confirm(`Are you absolutely ready to accuse ${activeNPC.name} of murder? This will close the case.`)) return;
@@ -193,10 +293,11 @@ export default function App() {
       const res = await fetch(`${API_BASE}/player/accuse`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ agent_id: selectedAgentId })
+        body: JSON.stringify({ agent_id: accuseTarget })
       });
       const data = await res.json();
       setGameResult(data);
+      setShowInteractionModal(false);
     } catch (e) {
       console.error(e);
     }
@@ -206,7 +307,7 @@ export default function App() {
   const activeNPC = agents[selectedAgentId];
   const activeNPCLogs = chatLogs[selectedAgentId] || [];
   
-  // Calculate trust percentage relative to Player (default to neutral 50% if not set)
+  // Calculate trust percentage relative to Player
   const getNPCTrustPct = (npcId) => {
     const agentData = agents[npcId];
     if (!agentData || !agentData.relationships || !agentData.relationships.Player) return 50;
@@ -214,410 +315,457 @@ export default function App() {
     return Math.round((rawVal + 1.0) * 50);
   };
 
-  const currentLoc = worldState?.agent_positions[selectedAgentId] || "Town Square";
-  const currentTick = worldState?.tick || 0;
-  
   // Determine NPC Mood / State for HUD
-  const getNPCMood = () => {
-    if (!activeNPC) return "Normal";
-    const em = activeNPC.emotions;
+  const getNPCMood = (npcId) => {
+    const targetNPC = agents[npcId] || activeNPC;
+    if (!targetNPC) return "Normal";
+    const em = targetNPC.emotions;
     if (em.anger > 0.4) return "Aggressive";
     if (em.fear > 0.4) return "Defensive";
     if (em.suspicion > 0.4) return "Suspicious";
     return "Neutral";
   };
 
-  // Determine current active event overlay text
-  const getActiveEventText = () => {
-    if (!worldState) return { title: "Initializing", desc: "Setting up simulation..." };
-    if (!worldState.murder_discovered) {
-      return { 
-        title: "Peaceful Village", 
-        desc: "Simulating normal village schedules. Tick forward to discover Arthur's body." 
-      };
-    }
-    return {
-      title: "Investigation In Progress",
-      desc: "Interrogate suspects, gather physical clues, and deduce the killer."
-    };
+  const getNPCMoodColor = (npcId) => {
+    const mood = getNPCMood(npcId);
+    if (mood === "Aggressive") return "#ef4444";
+    if (mood === "Defensive") return "#f59e0b";
+    if (mood === "Suspicious") return "#a855f7";
+    return "#10b981";
   };
 
-  const activeEvent = getActiveEventText();
+  const currentLoc = worldState?.agent_positions[selectedAgentId] || "Town Square";
+  const currentTick = worldState?.tick || 0;
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <div className="app-container" style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden' }}>
       
-      {/* Game Over Screen Modal */}
-      {gameResult && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(4, 6, 15, 0.95)', zIndex: 999,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px'
-        }}>
-          <div className="platform-panel" style={{ padding: '40px', maxWidth: '600px', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '20px', borderColor: 'var(--border-gold)' }}>
-            {gameResult.success ? (
-              <>
-                <Award size={64} color="var(--accent-gold)" style={{ alignSelf: 'center' }} />
-                <h2 style={{ fontSize: '28px', color: 'var(--accent-gold)', margin: 0, fontFamily: 'var(--font-serif)' }}>Case Solved!</h2>
-                <p style={{ fontSize: '15px', color: '#f1f3f9' }}>{gameResult.message}</p>
-                <div style={{ background: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '4px', border: '1px solid var(--border-gold)', textAlign: 'left', fontFamily: 'var(--font-mono)', fontSize: '12px' }}>
-                  <p><strong>Killer:</strong> {gameResult.killer_name}</p>
-                  <p><strong>Motive:</strong> {gameResult.motive}</p>
-                  <p><strong>Murder Weapon:</strong> {gameResult.clue.name} ({gameResult.clue.description})</p>
-                </div>
-              </>
-            ) : (
-              <>
-                <AlertTriangle size={64} color="#ef4444" style={{ alignSelf: 'center' }} />
-                <h2 style={{ fontSize: '28px', color: '#ef4444', margin: 0, fontFamily: 'var(--font-serif)' }}>Case Failed!</h2>
-                <p style={{ fontSize: '15px', color: '#f1f3f9' }}>{gameResult.message}</p>
-                <p style={{ fontSize: '13px', color: '#8c9bb4' }}>The real killer escaped. The village of Silent Hollow remains locked in fear.</p>
-              </>
-            )}
-            <button className="btn-outline-gold" onClick={handleReset} style={{ alignSelf: 'center', marginTop: '10px', width: 'auto' }}>
-              Restart Simulation
+      {/* 3D Background Viewport */}
+      <div className="background-3d-viewport" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 1 }}>
+        <ThreeViewport 
+          agentPositions={worldState?.agent_positions} 
+          selectedAgentId={selectedAgentId}
+          onSelectAgent={(id) => {
+            setSelectedAgentId(id);
+            setShowInteractionModal(true);
+          }}
+          activeDeliveryNPC={activeDeliveryNPC}
+          onDeliverySuccess={handleDeliveryComplete}
+          onNearNPC={setNearNPCId}
+        />
+      </div>
+
+      {/* Floating HUD Layer */}
+      <div className="floating-hud-layer" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 10, pointerEvents: 'none' }}>
+        
+        {/* Floating Header Panel */}
+        <header className="hud-header" style={{ pointerEvents: 'auto' }}>
+          <div className="brand-section">
+            <h1 className="brand-title">SILENT HOLLOW</h1>
+            <span className="brand-subtitle">COGNICORE SIMULATOR</span>
+          </div>
+          
+          <div className="system-telemetry">
+            <div className="telemetry-pill">
+              <Clock size={13} color="var(--accent-gold)" />
+              <span>Time: Tick {currentTick}</span>
+            </div>
+            <div className="telemetry-pill">
+              <div className="telemetry-beacon" style={{ background: worldState?.murder_discovered ? '#ef4444' : '#10b981', boxShadow: `0 0 8px ${worldState?.murder_discovered ? '#ef4444' : '#10b981'}` }} />
+              <span>State: {worldState?.murder_discovered ? 'CRIME SCENE ACTIVE' : 'PEACEFUL schedules'}</span>
+            </div>
+          </div>
+
+          <div className="header-controls" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <button className="btn-hud-control" onClick={handleReset}>
+              <RefreshCw size={12} /> Reset Case
             </button>
+            <button className="btn-hud-control btn-notebook" onClick={() => setShowNotebook(true)}>
+              <Clipboard size={12} /> Case Notebook
+              {cluesFound.length > 0 && <span className="clue-badge">{cluesFound.length}</span>}
+            </button>
+            <button className="btn-hud-heartbeat" onClick={handleStep} disabled={isLoading}>
+              <Play size={12} fill="white" /> Advance Time
+            </button>
+          </div>
+        </header>
+
+        {/* Floating Courier Game HUD (Top Left) */}
+        <div className="courier-hud-glass" style={{ pointerEvents: 'auto' }}>
+          <div className="courier-score-box">
+            <span className="label">SCORE</span>
+            <span className="score">{score}</span>
+          </div>
+          <div className="courier-divider" />
+          <div className="courier-target">
+            <span className="label">CURRENT TARGET</span>
+            <span className="name">{agents[activeDeliveryNPC]?.name || activeDeliveryNPC}</span>
+            <span className="info">Deliver letter to the <strong style={{ color: '#00f2fe' }}>{NPC_LOCATIONS[activeDeliveryNPC]} Mailbox</strong>!</span>
+          </div>
+        </div>
+
+        {/* Floating Evidence Progress HUD (Top Right) */}
+        <div className="evidence-hud-glass" style={{ pointerEvents: 'auto' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', fontFamily: 'var(--font-mono)', color: 'rgba(255,255,255,0.5)', letterSpacing: '1px' }}>
+            <span>EVIDENCE FILE</span>
+            <span>{cluesFound.length}/7 FOUND</span>
+          </div>
+          <div className="metric-bar-track" style={{ height: '4px', marginTop: '6px', background: 'rgba(255,255,255,0.06)' }}>
+            <div className="metric-bar-fill" style={{ width: `${(cluesFound.length / 7) * 100}%`, background: 'var(--accent-gold)', boxShadow: '0 0 8px var(--accent-gold)' }} />
+          </div>
+        </div>
+
+        {/* Proximity HUD Prompt (Bottom Center) */}
+        {nearNPCId && !showInteractionModal && !showNotebook && (
+          <div className="proximity-hud-prompt" style={{ pointerEvents: 'auto' }}>
+            <div className="avatar-frame">
+              <img src={PORTRAITS[nearNPCId] || defaultVillagerPortrait} alt={nearNPCId} />
+            </div>
+            <div className="info-area">
+              <span className="proximity-tag">NEARBY VILLAGER</span>
+              <span className="npc-title">{agents[nearNPCId]?.name || nearNPCId} ({NPC_LOCATIONS[nearNPCId]})</span>
+              <span className="prompt-help">Press <span className="key-cap">E</span> or click Interact to Interrogate</span>
+            </div>
+            <div className="actions-area">
+              <button 
+                className="btn-proximity-action btn-interrogate"
+                onClick={() => {
+                  setSelectedAgentId(nearNPCId);
+                  setShowInteractionModal(true);
+                }}
+              >
+                💬 Interact
+              </button>
+              <button 
+                className="btn-proximity-action btn-inspect"
+                onClick={() => handleSearchLocation(nearNPCId)}
+              >
+                🔎 Inspect Location
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Keyboard Controls Guide (Bottom Right) */}
+        <div className="keyboard-guide-hud" style={{ pointerEvents: 'auto' }}>
+          <div className="guide-title">CONTROLS</div>
+          <div className="keys-grid">
+            <div className="key-row"><span className="key-badge">W</span><span className="key-badge">A</span><span className="key-badge">S</span><span className="key-badge">D</span> <span className="label">Run</span></div>
+            <div className="key-row"><span className="key-badge" style={{ width: '60px', textAlign: 'center' }}>SPACE</span> <span className="label">Jump</span></div>
+            <div className="key-row"><span className="key-badge">E</span> <span className="label">Interact</span></div>
+          </div>
+        </div>
+
+      </div>
+
+      {/* Interrogation Dialog Modal */}
+      {showInteractionModal && activeNPC && (
+        <div className="glass-modal-backdrop" style={{ zIndex: 100 }}>
+          <div className="glass-modal-container interrogation-modal">
+            
+            <div className="modal-header">
+              <div className="header-brand">
+                <MessageCircle size={14} color="var(--accent-gold)" />
+                <span>INTERROGATION CASE RECORD</span>
+              </div>
+              <button className="btn-close-modal" onClick={() => setShowInteractionModal(false)}>
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="interrogation-content">
+              
+              {/* Left Panel: Suspect Profile */}
+              <div className="suspect-profile-pane">
+                <div className="avatar-ring">
+                  <img src={PORTRAITS[selectedAgentId] || defaultVillagerPortrait} alt={activeNPC.name} />
+                </div>
+                <h3 className="suspect-name">{activeNPC.name}</h3>
+                <span className="suspect-role">{activeNPC.metadata?.role || "Villager"}</span>
+                
+                <div className="divider-line" />
+
+                <div className="status-meters">
+                  <div className="meter-group">
+                    <div className="meter-label">
+                      <span>Trust Relationship</span>
+                      <span>{getNPCTrustPct(selectedAgentId)}%</span>
+                    </div>
+                    <div className="bar-track">
+                      <div className="bar-fill" style={{ width: `${getNPCTrustPct(selectedAgentId)}%`, background: 'var(--accent-gold)' }} />
+                    </div>
+                  </div>
+
+                  <div className="meter-group">
+                    <div className="meter-label">
+                      <span>Mood / Alert State</span>
+                      <span style={{ color: getNPCMoodColor(selectedAgentId) }}>{getNPCMood(selectedAgentId)}</span>
+                    </div>
+                  </div>
+
+                  <div className="emotions-mini-grid">
+                    <div className="emotion-stat">
+                      <span className="val">{Math.round(activeNPC.emotions.anger * 100)}%</span>
+                      <span className="lbl">Anger</span>
+                    </div>
+                    <div className="emotion-stat">
+                      <span className="val">{Math.round(activeNPC.emotions.fear * 100)}%</span>
+                      <span className="lbl">Fear</span>
+                    </div>
+                    <div className="emotion-stat">
+                      <span className="val">{Math.round(activeNPC.emotions.suspicion * 100)}%</span>
+                      <span className="lbl">Suspicion</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="action-buttons-stack" style={{ marginTop: 'auto' }}>
+                  <button className="btn-action-inspect" onClick={() => handleSearchLocation(selectedAgentId)}>
+                    🔎 Inspect {NPC_LOCATIONS[selectedAgentId] || 'Cottage'}
+                  </button>
+                  <button className="btn-action-accuse" onClick={() => handleAccuse(selectedAgentId)}>
+                    🚨 Accuse of Murder
+                  </button>
+                </div>
+              </div>
+
+              {/* Right Panel: Interrogation Chat Console */}
+              <div className="dialogue-chat-pane">
+                <div className="chat-messages-container">
+                  <div className="speech-bubble npc-bubble">
+                    <strong>{activeNPC.name}:</strong> I'm shocked by Arthur's murder, detective. What do you wish to ask me?
+                  </div>
+                  {activeNPCLogs.map((msg, idx) => (
+                    <div key={idx} className={`speech-bubble ${msg.sender}-bubble`}>
+                      {msg.sender === 'player' ? (
+                        <><strong>You:</strong> {msg.text}</>
+                      ) : msg.sender === 'system' ? (
+                        <span className="system-text">{msg.text}</span>
+                      ) : (
+                        <><strong>{activeNPC.name}:</strong> {msg.text}</>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Quick replies */}
+                <div className="quick-replies-hud">
+                  {QUICK_REPLIES.map((reply, idx) => (
+                    <button 
+                      key={idx} 
+                      className="btn-quick-reply"
+                      onClick={() => sendChatMessage(reply)}
+                    >
+                      👉 "{reply}"
+                    </button>
+                  ))}
+                </div>
+
+                {/* Custom chat form */}
+                <form onSubmit={handleSendChat} className="chat-input-row">
+                  <input 
+                    type="text" 
+                    placeholder={`Ask custom question to ${activeNPC.name}...`}
+                    value={chatInput}
+                    onChange={e => setChatInput(e.target.value)}
+                    className="chat-text-input"
+                  />
+                  <button type="submit" className="btn-chat-send">ASK</button>
+                </form>
+              </div>
+
+            </div>
+
           </div>
         </div>
       )}
 
-      {/* Header */}
-      <header className="platform-header">
-        <div className="brand-section">
-          <h1 className="brand-title">COGNICORE</h1>
-          <span className="brand-subtitle">DETECTIVE SIMULATION</span>
-        </div>
-        
-        <div className="system-telemetry">
-          <div className="telemetry-pill">
-            <MapPin size={13} color="var(--accent-gold)" />
-            <span>Location: {currentLoc}</span>
-          </div>
-          <div className="telemetry-pill">
-            <Clock size={13} color="var(--accent-gold)" />
-            <span>Time: Tick {currentTick}</span>
-          </div>
-          <div className="telemetry-pill">
-            <div className="telemetry-beacon" style={{ background: worldState?.murder_discovered ? '#ef4444' : '#10b981', boxShadow: `0 0 8px ${worldState?.murder_discovered ? '#ef4444' : '#10b981'}` }} />
-            <span>State: {worldState?.murder_discovered ? 'INVESTIGATION' : 'STANDBY'}</span>
-          </div>
-        </div>
-
-        <div className="header-controls" style={{ display: 'flex', gap: '8px' }}>
-          <button className="btn-pause" onClick={handleReset}>
-            Reset
-          </button>
-          <button className="btn-next-heartbeat" onClick={handleStep} disabled={isLoading}>
-            <Play size={12} fill="white" /> Next Heartbeat
-          </button>
-        </div>
-      </header>
-
-      {/* Main Layout Grid */}
-      <div className="platform-layout">
-        
-        {/* Left Sidebar: Character grid */}
-        <aside className="sidebar-intelligence">
-          <div className="sidebar-heading">
-            <span>CHARACTERS</span>
-            <Users size={12} />
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1, overflowY: 'auto' }}>
-            {Object.entries(agents).map(([id, data]) => {
-              const isSelected = id === selectedAgentId;
-              const loc = worldState?.agent_positions[id] || "Marketplace";
-              const trust = getNPCTrustPct(id);
-              
-              // Colors based on trust levels
-              let beaconColor = '#10b981'; // Green
-              if (trust < 30) beaconColor = '#ef4444'; // Red
-              else if (trust < 60) beaconColor = '#f59e0b'; // Yellow/Orange
-
-              return (
-                <div 
-                  key={id} 
-                  className={`character-card ${isSelected ? 'selected' : ''}`}
-                  onClick={() => setSelectedAgentId(id)}
-                >
-                  <div className="character-avatar">
-                    <img src={PORTRAITS[id] || defaultVillagerPortrait} alt={data.name} />
-                  </div>
-                  <div className="character-info">
-                    <div className="character-name-row">
-                      <span className="character-name">{data.name}</span>
-                      <div className="card-status-dot" style={{ background: beaconColor }} />
-                    </div>
-                    <div className="character-loc">{loc}</div>
-                    <div className="character-trust">Trust: {trust}%</div>
-                  </div>
-                  {id === "Katherine" && <Shield size={12} color="var(--accent-emerald)" style={{ marginLeft: '4px' }} />}
-                </div>
-              );
-            })}
-          </div>
-
-          <button className="btn-outline-gold" onClick={() => setActiveSubView("social")}>
-            View Relationship Map
-          </button>
-        </aside>
-
-        {/* Center column - Simulation Area */}
-        <main className="center-column center-simulation">
-          
-          {/* 3D Viewport */}
-          <div className="three-simulation-viewport">
-            <ThreeViewport 
-              agentPositions={worldState?.agent_positions} 
-              selectedAgentId={selectedAgentId}
-              onSelectAgent={setSelectedAgentId}
-              eventLog={worldState?.event_log}
-            />
-
-            {/* Top-Left Floating Controls */}
-            <div className="floating-hud-coords">
-              <div className="hud-icon-btn"><Search size={14} /></div>
-              <div className="hud-icon-btn"><MapPin size={14} /></div>
-              <div className="hud-icon-btn"><FileText size={14} /></div>
-              <div className="hud-icon-btn" onClick={() => setActiveSubView("social")}><Network size={14} /></div>
-            </div>
-
-            {/* Active Event bottom left overlay */}
-            <div className="active-event-overlay">
-              <div className="active-event-header">ACTIVE EVENT</div>
-              <div className="active-event-title">{activeEvent.title}</div>
-              <div className="active-event-desc">{activeEvent.desc}</div>
-              
-              <div style={{ marginTop: '8px', fontSize: '9px', color: '#8c9bb4', display: 'flex', justifyBetween: 'center' }}>
-                <span>Evidence Index:</span>
-                <span style={{ color: 'var(--accent-gold)', marginLeft: '4px' }}>{cluesFound.length}/7</span>
-              </div>
-              <div className="metric-bar-track" style={{ height: '3px', marginTop: '4px' }}>
-                <div className="metric-bar-fill" style={{ width: `${(cluesFound.length / 7) * 100}%`, background: 'var(--accent-gold)' }} />
-              </div>
-            </div>
-
-            {/* Floating Navigation Menu */}
-            <div className="viewport-bottom-nav">
-              <button className={`nav-pill ${activeSubView === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveSubView('dashboard')}>
-                <Compass size={13} /> Dashboard
-              </button>
-              <button className={`nav-pill ${activeSubView === 'clues' ? 'active' : ''}`} onClick={() => setActiveSubView('clues')}>
-                <FileText size={13} /> Clues & reasoning
-              </button>
-              <button className={`nav-pill ${activeSubView === 'interrogate' ? 'active' : ''}`} onClick={() => setActiveSubView('interrogate')}>
-                <MessageCircle size={13} /> Interrogate Logs
-              </button>
-              <button className={`nav-pill ${activeSubView === 'social' ? 'active' : ''}`} onClick={() => setActiveSubView('social')}>
-                <Share2 size={13} /> Social Graph
-              </button>
-            </div>
-          </div>
-        </main>
-
-        {/* Right Sidebar: Investigation Hub */}
-        <aside className="sidebar-investigation">
-          
-          {/* Current Objective scroll card */}
-          <div className="objective-parchment">
-            <div className="objective-meta">
-              <div className="objective-label">CURRENT OBJECTIVE</div>
-              <div className="objective-title">Uncover the Truth</div>
-              <div className="objective-desc">Interrogate villagers, collect evidence and deduce who murdered Arthur the Scribe.</div>
-            </div>
-            <div className="objective-icon-img">
-              <img src={evidenceBloodyLetter} alt="sword scroll icon" style={{ filter: 'sepia(1) brightness(0.6)' }} />
-            </div>
-          </div>
-
-          {/* Interrogation log box */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <div className="section-label">INTERROGATION</div>
-            <div className="interrogation-console">
-              
-              <div className="interrogation-target-row">
-                <div className="interrogation-target-avatar">
-                  <img src={PORTRAITS[selectedAgentId] || defaultVillagerPortrait} alt={activeNPC?.name} />
-                </div>
-                <div className="interrogation-target-meta">
-                  <div className="interrogation-target-name">{activeNPC?.name}</div>
-                  <div className="interrogation-target-relation">
-                    Mood: <span style={{ color: getNPCMood() === 'Defensive' ? 'var(--accent-amber)' : 'var(--accent-gold)' }}>{getNPCMood()}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="dialogue-logs">
-                <div className="dialogue-bubble npc">
-                  I was shocked when I heard about Arthur. Ask me what I know, detective.
-                </div>
-                {activeNPCLogs.map((msg, idx) => (
-                  <div key={idx} className={`dialogue-bubble ${msg.sender}`}>
-                    {msg.text}
-                  </div>
-                ))}
-              </div>
-
-              {/* Quick Replies presets mapping */}
-              <div className="quick-replies-list">
-                {QUICK_REPLIES.map((reply, idx) => (
-                  <button 
-                    key={idx} 
-                    type="button"
-                    className="quick-reply-option"
-                    onClick={() => sendChatMessage(reply)}
-                  >
-                    👉 "{reply}"
-                  </button>
-                ))}
-              </div>
-            </div>
+      {/* Case Notebook Drawer Overlay */}
+      {showNotebook && (
+        <div className="glass-modal-backdrop" style={{ zIndex: 100 }}>
+          <div className="glass-modal-container notebook-modal">
             
-            <form onSubmit={handleSendChat} style={{ display: 'flex', border: '1px solid var(--border-dim)', borderRadius: '4px', overflow: 'hidden' }}>
-              <input 
-                type="text" 
-                placeholder="Ask custom question..."
-                value={chatInput}
-                onChange={e => setChatInput(e.target.value)}
-                style={{ flex: 1, padding: '8px', background: 'rgba(0,0,0,0.3)', color: 'white', border: 'none', fontSize: '11px', outline: 'none' }}
-              />
-              <button type="submit" style={{ padding: '0 12px', background: 'var(--accent-gold)', color: '#03050c', border: 'none', fontWeight: 'bold', fontSize: '11px', cursor: 'pointer' }}>ASK</button>
-            </form>
-          </div>
-
-          {/* Evidence board slots */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <div className="section-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>EVIDENCE BOARD</span>
-              <span>{cluesFound.length}/7 COLLECTED</span>
+            <div className="modal-header">
+              <div className="header-brand">
+                <Clipboard size={14} color="var(--accent-gold)" />
+                <span>INVESTIGATOR'S CASE NOTEBOOK</span>
+              </div>
+              <button className="btn-close-modal" onClick={() => setShowNotebook(false)}>
+                <X size={16} />
+              </button>
             </div>
+
+            <div className="notebook-tabs-row">
+              <button className={`tab-button ${notebookTab === 'evidence' ? 'active' : ''}`} onClick={() => setNotebookTab('evidence')}>
+                📁 Evidence Board ({cluesFound.length})
+              </button>
+              <button className={`tab-button ${notebookTab === 'suspects' ? 'active' : ''}`} onClick={() => setNotebookTab('suspects')}>
+                👥 Suspect Dossier
+              </button>
+              <button className={`tab-button ${notebookTab === 'social' ? 'active' : ''}`} onClick={() => setNotebookTab('social')}>
+                🕸️ Relationship Map
+              </button>
+              <button className={`tab-button ${notebookTab === 'logs' ? 'active' : ''}`} onClick={() => setNotebookTab('logs')}>
+                📜 Chronicle Feed
+              </button>
+            </div>
+
+            <div className="notebook-body-content">
+              
+              {/* Evidence Board Tab */}
+              {notebookTab === 'evidence' && (
+                <div className="evidence-tab-pane">
+                  <div className="evidence-corkboard">
+                    {[0, 1, 2, 3, 4, 5, 6].map((idx) => {
+                      const clue = cluesFound[idx];
+                      return (
+                        <div key={idx} className={`corkboard-slot ${clue ? 'active' : ''}`}>
+                          {clue ? (
+                            <>
+                              <img src={evidenceBloodyLetter} alt={clue.name} style={{ filter: idx === 1 ? 'hue-rotate(90deg)' : idx === 2 ? 'hue-rotate(220deg)' : 'none' }} />
+                              <div className="clue-tag">{clue.name}</div>
+                              <div className="clue-tooltip">
+                                <strong style={{ color: 'var(--accent-gold)' }}>{clue.name}</strong>
+                                <span className="loc">Found at: {clue.location}</span>
+                                <p className="desc">{clue.description}</p>
+                              </div>
+                            </>
+                          ) : (
+                            <span className="slot-placeholder">?</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="corkboard-instruction">
+                    🔎 Deliver packages to cottages to gain trust and inspect houses for clues. Collect all 7 items to solve the mystery.
+                  </div>
+                </div>
+              )}
+
+              {/* Suspect Dossier Tab */}
+              {notebookTab === 'suspects' && (
+                <div className="suspects-tab-pane">
+                  <div className="suspects-dossier-grid">
+                    {Object.entries(agents).map(([id, data]) => {
+                      const trust = getNPCTrustPct(id);
+                      const currentPos = worldState?.agent_positions[id] || "Marketplace";
+                      return (
+                        <div key={id} className="suspect-dossier-card">
+                          <div className="card-top">
+                            <div className="avatar-frame">
+                              <img src={PORTRAITS[id] || defaultVillagerPortrait} alt={data.name} />
+                            </div>
+                            <div className="meta">
+                              <h4>{data.name}</h4>
+                              <span className="role">{data.metadata?.role || "Villager"}</span>
+                            </div>
+                          </div>
+                          
+                          <div className="card-middle">
+                            <div className="stat-row"><span>Location:</span> <strong style={{ color: 'white' }}>{currentPos}</strong></div>
+                            <div className="stat-row"><span>Mood:</span> <strong style={{ color: getNPCMoodColor(id) }}>{getNPCMood(id)}</strong></div>
+                            <div className="stat-row"><span>Trust level:</span> <strong style={{ color: 'var(--accent-gold)' }}>{trust}%</strong></div>
+                          </div>
+
+                          <div className="card-secrets">
+                            <span className="secrets-header">🔓 Unlocked Secrets & Rumors</span>
+                            <div className="secrets-list">
+                              {data.known_rumors && Object.values(data.known_rumors).length > 0 ? (
+                                Object.values(data.known_rumors).map((rumor, rIdx) => (
+                                  <div key={rIdx} className="secret-bullet">📰 "{rumor.content}"</div>
+                                ))
+                              ) : (
+                                <div className="no-secrets">No secrets shared yet. Interrogate with higher trust.</div>
+                              )}
+                            </div>
+                          </div>
+
+                          <button className="btn-dossier-interrogate" onClick={() => {
+                            setSelectedAgentId(id);
+                            setShowNotebook(false);
+                            setShowInteractionModal(true);
+                          }}>
+                            💬 Interrogate {data.name}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Relationship Map Tab */}
+              {notebookTab === 'social' && socialGraph && (
+                <div className="social-tab-pane" style={{ height: '100%' }}>
+                  <SocialGraphView graphData={socialGraph} />
+                </div>
+              )}
+
+              {/* Chronicle Feed Tab */}
+              {notebookTab === 'logs' && worldState && (
+                <div className="logs-tab-pane">
+                  <div className="logs-feed-container">
+                    {worldState.event_log && worldState.event_log.length > 0 ? (
+                      worldState.event_log.map((log, idx) => {
+                        let icon = <Info size={12} color="#94a3b8" />;
+                        if (log.type.includes("CLUE")) icon = <Search size={12} color="var(--accent-gold)" />;
+                        if (log.type.includes("ACCUSATION")) icon = <ShieldAlert size={12} color="#ef4444" />;
+                        if (log.type.includes("MURDER")) icon = <AlertTriangle size={12} color="#ef4444" />;
+                        if (log.type.includes("TALK")) icon = <MessageCircle size={12} color="#3b82f6" />;
+
+                        return (
+                          <div key={idx} className="feed-log-item">
+                            <div className="icon-wrap">{icon}</div>
+                            <div className="log-text">
+                              <span className="desc">{log.description}</span>
+                              <span className="time">Simulation Step {log.tick !== undefined ? log.tick : currentTick}</span>
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="no-logs">No simulation events recorded yet.</div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* Case Result Screen Overlay Modal */}
+      {gameResult && (
+        <div className="glass-modal-backdrop" style={{ zIndex: 101 }}>
+          <div className="glass-modal-container game-result-modal" style={{ maxWidth: '560px', textAlign: 'center' }}>
             
-            <div className="evidence-corkboard-grid">
-              {/* Slot 1: Bloody Letter */}
-              <div className={`evidence-corkboard-slot ${cluesFound.some(c => c.name.toLowerCase().includes("letter")) ? 'active' : ''}`}>
-                {cluesFound.some(c => c.name.toLowerCase().includes("letter")) ? (
-                  <>
-                    <img src={evidenceBloodyLetter} alt="Bloody Letter" />
-                    <div className="evidence-slot-title">Letter</div>
-                  </>
-                ) : (
-                  <span className="evidence-slot-empty">?</span>
-                )}
-              </div>
-
-              {/* Slot 2: Broken Necklace */}
-              <div className={`evidence-corkboard-slot ${cluesFound.some(c => c.name.toLowerCase().includes("necklace") || c.name.toLowerCase().includes("ring")) ? 'active' : ''}`}>
-                {cluesFound.some(c => c.name.toLowerCase().includes("necklace") || c.name.toLowerCase().includes("ring")) ? (
-                  <>
-                    <img src={evidenceBloodyLetter} alt="Ring clue" style={{ filter: 'hue-rotate(90deg)' }} />
-                    <div className="evidence-slot-title">Ring</div>
-                  </>
-                ) : (
-                  <span className="evidence-slot-empty">?</span>
-                )}
-              </div>
-
-              {/* Slot 3: Tool / Hammer */}
-              <div className={`evidence-corkboard-slot ${cluesFound.some(c => c.name.toLowerCase().includes("hammer") || c.name.toLowerCase().includes("dagger") || c.name.toLowerCase().includes("arrow") || c.name.toLowerCase().includes("hook") || c.name.toLowerCase().includes("vial")) ? 'active' : ''}`}>
-                {cluesFound.some(c => c.name.toLowerCase().includes("hammer") || c.name.toLowerCase().includes("dagger") || c.name.toLowerCase().includes("arrow") || c.name.toLowerCase().includes("hook") || c.name.toLowerCase().includes("vial")) ? (
-                  <>
-                    <img src={evidenceBloodyLetter} alt="Weapon clue" style={{ filter: 'hue-rotate(220deg)' }} />
-                    <div className="evidence-slot-title">Weapon</div>
-                  </>
-                ) : (
-                  <span className="evidence-slot-empty">?</span>
-                )}
-              </div>
-
-              {/* Slot 4: Placeholder */}
-              <div className="evidence-corkboard-slot">
-                <span className="evidence-slot-empty">?</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Actions panel */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: 'auto' }}>
-            <button className="btn-outline-gold" onClick={handleSearchLocation} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-              <Search size={12} /> Inspect location for clues
-            </button>
-            <button className="btn-accuse-crimson" onClick={handleAccuse}>
-              <ShieldAlert size={14} /> Accuse Suspect
-            </button>
-          </div>
-
-        </aside>
-
-      </div>
-
-      {/* Floating observatory tabs drawer overlay if Clues / Social subviews are active */}
-      {activeSubView !== "dashboard" && (
-        <div style={{
-          position: 'fixed', bottom: '60px', left: '296px', right: '396px',
-          height: '240px', background: 'rgba(9, 12, 21, 0.95)', border: '1px solid var(--border-gold)',
-          borderRadius: '8px', boxShadow: '0 -10px 40px rgba(0,0,0,0.8)',
-          zIndex: 80, display: 'flex', flexDirection: 'column', overflow: 'hidden'
-        }}>
-          <div className="observatory-header">
-            <div style={{ paddingLeft: '16px', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--accent-gold)' }}>
-              OBSERVATORY DEEP MATRIX: {activeSubView.toUpperCase()} ANALYSIS
-            </div>
-            <button 
-              onClick={() => setActiveSubView("dashboard")}
-              style={{ background: 'transparent', border: 'none', color: '#8c9bb4', cursor: 'pointer', padding: '10px 16px', fontSize: '11px' }}
-            >
-              CLOSE
-            </button>
-          </div>
-          
-          <div className="observatory-content" style={{ flex: 1, overflowY: 'auto' }}>
-            {activeSubView === "clues" && activeNPC && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '20px', fontSize: '12px' }}>
-                <div>
-                  <div className="inspector-section-title">ACTIVE AI GOALS</div>
-                  {activeNPC.goals.map((g, idx) => (
-                    <div key={idx} style={{ marginBottom: '6px', padding: '6px', background: 'rgba(255,255,255,0.02)', borderRadius: '4px' }}>
-                      <strong>{g.id}: </strong>
-                      <span style={{ fontSize: '11px', color: '#8c9bb4' }}>{g.description}</span>
-                    </div>
-                  ))}
-                </div>
-                <div>
-                  <div className="inspector-section-title">LLM PLANNING REASONING LOGS</div>
-                  <div style={{ background: 'rgba(0,0,0,0.3)', padding: '10px', borderRadius: '4px', border: '1px solid var(--border-dim)', fontFamily: 'var(--font-mono)', fontSize: '11px', lineHeight: '1.4' }}>
-                    {activeNPC.last_reasoning}
-                  </div>
+            {gameResult.success ? (
+              <div className="result-success-content" style={{ display: 'flex', flexDirection: 'column', gap: '20px', alignItems: 'center' }}>
+                <Award size={64} color="var(--accent-gold)" className="pulse-animation" />
+                <h2 className="result-title" style={{ color: 'var(--accent-gold)' }}>CASE SOLVED!</h2>
+                <p className="result-desc">{gameResult.message}</p>
+                
+                <div className="evidence-summary-card">
+                  <div className="row"><strong>KILLER:</strong> <span style={{ color: '#ef4444' }}>{gameResult.killer_name}</span></div>
+                  <div className="row"><strong>MOTIVE:</strong> <span>{gameResult.motive}</span></div>
+                  <div className="row"><strong>MURDER WEAPON:</strong> <span>{gameResult.clue.name} ({gameResult.clue.description})</span></div>
                 </div>
               </div>
-            )}
-
-            {activeSubView === "interrogate" && activeNPC && (
-              <div className="memory-timeline">
-                <div className="inspector-section-title">NPC Memory Log & Rumor Bank</div>
-                {activeNPC.secrets.map((sec, idx) => (
-                  <div key={`sec-${idx}`} className="memory-item secret">
-                    <div className="memory-meta">
-                      <span>🤫 SECRET DETAIL</span>
-                      <span>TICK {sec.timestamp}</span>
-                    </div>
-                    <div>{sec.content}</div>
-                  </div>
-                ))}
-                {activeNPC.known_rumors.map((rum, idx) => (
-                  <div key={`rum-${idx}`} className="memory-item">
-                    <div className="memory-meta">
-                      <span>📰 KNOWN GOSSIP (Fidelity: {rum.fidelity.toFixed(2)})</span>
-                      <span>TICK {rum.timestamp}</span>
-                    </div>
-                    <div>{rum.content}</div>
-                  </div>
-                ))}
+            ) : (
+              <div className="result-fail-content" style={{ display: 'flex', flexDirection: 'column', gap: '20px', alignItems: 'center' }}>
+                <AlertTriangle size={64} color="#ef4444" />
+                <h2 className="result-title" style={{ color: '#ef4444' }}>CASE FAILED!</h2>
+                <p className="result-desc">{gameResult.message}</p>
+                <p style={{ color: '#8c9bb4', fontSize: '12px' }}>The actual culprit slipped away in the shadows. The village of Silent Hollow remains under a shroud of suspicion...</p>
               </div>
             )}
 
-            {activeSubView === "social" && socialGraph && (
-              <SocialGraphView graphData={socialGraph} />
-            )}
+            <button className="btn-result-restart" onClick={handleReset}>
+              Restart Simulation Case
+            </button>
           </div>
         </div>
       )}
