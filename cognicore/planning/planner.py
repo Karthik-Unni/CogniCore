@@ -40,7 +40,7 @@ class Planner:
                         relevant_memories: List[Any], world_state: Dict[str, Any]) -> Tuple[str, List[str], Dict[str, Any]]:
         
         system_instruction = f"""
-You are the planning engine for {agent_id}, a character in the simulation "Silent Hollow".
+You are the planning engine for {agent_id}, a character in the simulation.
 You must decide the character's reasoning, plan, and immediate next action based on their personality, emotions, memories, and top goal.
 Return your decision strictly in JSON format matching the schema:
 {{

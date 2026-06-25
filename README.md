@@ -222,18 +222,13 @@ Whether a listener *believes* a rumor depends on how much they trust the source 
 
 ---
 
-## 🏘️ Silent Hollow — Showcase Demo
+## 🏘️ Ravenwood Inn — Showcase Demo
 
-`silent_hollow_demo/` is a playable murder-mystery built on top of the SDK — 8 named characters with secrets, emotions, and relationships, a FastAPI backend running the simulation loop, and a Three.js isometric frontend for watching it unfold.
+`demo/` is a playable 3D browser mystery game built on top of the SDK concepts — 5 suspects with secrets, emotions, relationships, and a rumor mutation system running fully client-side.
 
 ```bash
-# Backend
-cd silent_hollow_demo/backend
-pip install fastapi uvicorn
-uvicorn server:app --reload
-
-# Frontend
-cd silent_hollow_demo/frontend
+# Launch Dev Server
+cd demo/frontend
 npm install
 npm run dev
 ```
@@ -287,9 +282,8 @@ cognicore/               # The SDK
 ├── world/                # World — locations, agent placement, clue tracking
 └── simulation/           # SimulationOrchestrator — the multi-agent tick loop
 
-silent_hollow_demo/       # Showcase app (NOT required to use the SDK)
-├── backend/             # FastAPI server wrapping SimulationOrchestrator
-└── frontend/            # Vite + React + Three.js dashboard
+demo/                    # Showcase app (3D Browser Game)
+└── frontend/            # Standalone client-side Vite + Three.js game
 
 tests/                   # 6 unit/integration tests, all passing as of this writing
 ```
