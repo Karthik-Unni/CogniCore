@@ -235,8 +235,6 @@ npm run dev
 
 Open the frontend dev server URL and watch the village — characters investigating, gossiping, forming alliances, and occasionally giving themselves away.
 
-**Worth knowing:** the demo's locations (Tavern, Blacksmith, Town Hall...) and goal types (`solve_murder`, `hide_crime`, `self_preservation`) are currently hardcoded directly into the SDK's core `World` and `Goal` classes, not cleanly separated into demo-only config. If you're building your *own* world rather than running Silent Hollow, you'll currently need to either work around or fork these classes — see [Known Limitations](#-known-limitations--roadmap).
-
 ---
 
 ## 🔌 LLM Providers
