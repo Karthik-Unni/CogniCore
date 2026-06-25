@@ -1,16 +1,2446 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <title>Silent Hollow - CogniCore 3D Character Simulation</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Last Supper at Ravenwood Inn - CogniCore Demo</title>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  
+  <!-- Three.js r128 CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <style>
+    :root {
+      --bg-dark: #070503;
+      --bg-card: #0d0d0d;
+      --bg-panel: #121212;
+      --border-amber: rgba(251, 191, 36, 0.15);
+      --border-amber-active: rgba(251, 191, 36, 0.6);
+      
+      --accent-gold: #d4af37;
+      --accent-amber: #fbbf24;
+      --accent-red: #ef4444;
+      --accent-blue: #3b82f6;
+      --accent-orange: #f97316;
+      --accent-yellow: #eab308;
+      --accent-green: #22c55e;
+      --accent-purple: #a855f7;
+      --accent-white: #ffffff;
+      
+      --font-sans: 'Outfit', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: #e2e8f0;
+      font-family: var(--font-sans);
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    #game-container {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    /* Top Bar */
+    #top-bar {
+      height: 56px;
+      background: #0f0b07;
+      border-bottom: 2px solid var(--border-amber);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 20px;
+      flex-shrink: 0;
+      z-index: 100;
+    }
+
+    .brand {
+      font-family: var(--font-mono);
+      font-size: 16px;
+      font-weight: bold;
+      color: var(--accent-amber);
+      text-shadow: 0 0 10px rgba(251, 191, 36, 0.35);
+      letter-spacing: 1px;
+    }
+
+    .top-controls {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .btn-action {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-amber);
+      border-radius: 4px;
+      color: #cbd5e1;
+      padding: 8px 16px;
+      font-size: 12px;
+      font-family: var(--font-mono);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-action:hover {
+      background: rgba(251, 191, 36, 0.1);
+      border-color: var(--accent-amber);
+      color: #fff;
+    }
+
+    .btn-accuse {
+      background: rgba(239, 68, 68, 0.15);
+      border-color: rgba(239, 68, 68, 0.5);
+      color: #f87171;
+      font-weight: bold;
+      display: none; /* Shown Day 2 onwards */
+    }
+
+    .btn-accuse:hover {
+      background: rgba(239, 68, 68, 0.35);
+      border-color: #f87171;
+      color: #fff;
+    }
+
+    /* Main Section Split */
+    #main-content {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+      position: relative;
+    }
+
+    /* 3D Viewport */
+    #three-container {
+      width: 65%;
+      height: 100%;
+      position: relative;
+      background: #090705;
+    }
+
+    /* Floating tags on screen */
+    .floating-npc-tag {
+      position: absolute;
+      transform: translate(-50%, -100%);
+      pointer-events: none;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .tag-bubble {
+      background: rgba(13, 13, 13, 0.9);
+      border: 1px solid var(--border-amber-active);
+      color: #fff;
+      font-size: 9px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      text-align: center;
+      max-width: 120px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Diagnostics Dashboard Panel */
+    #stats-panel {
+      width: 35%;
+      height: 100%;
+      background: var(--bg-card);
+      border-left: 2px solid var(--border-amber);
+      display: flex;
+      flex-direction: column;
+      padding: 16px;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+
+    #stats-panel::-webkit-scrollbar {
+      width: 6px;
+    }
+    #stats-panel::-webkit-scrollbar-thumb {
+      background: rgba(251, 191, 36, 0.15);
+      border-radius: 3px;
+    }
+
+    .panel-section {
+      margin-bottom: 18px;
+    }
+
+    .panel-section h3 {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--accent-amber);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid var(--border-amber);
+      padding-bottom: 4px;
+    }
+
+    .placeholder-text {
+      font-size: 13px;
+      color: #555;
+      text-align: center;
+      padding: 60px 20px;
+      font-style: italic;
+    }
+
+    /* NPC Stats displays */
+    .npc-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .npc-portrait-badge {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: 2px solid var(--accent-amber);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 16px;
+      color: #000;
+    }
+
+    .npc-header-text h2 {
+      font-size: 15px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .npc-header-text span {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: #888;
+      text-transform: uppercase;
+    }
+
+    .trust-score-label {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      margin-bottom: 10px;
+      color: #cbd5e1;
+    }
+
+    /* Emotion meter grids */
+    .emotions-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .emotion-row {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .emotion-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      font-family: var(--font-mono);
+      color: #94a3b8;
+    }
+
+    .emotion-bar {
+      height: 6px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 3px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .emotion-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.3s ease-out;
+    }
+
+    /* Log lists */
+    .log-list {
+      background: rgba(0, 0, 0, 0.2);
+      border: 1px solid var(--border-amber);
+      border-radius: 4px;
+      max-height: 150px;
+      overflow-y: auto;
+      padding: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .log-item {
+      font-size: 11px;
+      line-height: 1.4;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+      padding-bottom: 4px;
+    }
+
+    .log-item:last-child {
+      border-bottom: none;
+    }
+
+    .rumor-text {
+      color: #e2e8f0;
+    }
+
+    .rumor-meta {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      margin-top: 2px;
+    }
+
+    .fidelity-green { color: var(--accent-green); }
+    .fidelity-yellow { color: var(--accent-yellow); }
+    .fidelity-red { color: var(--accent-red); }
+
+    .memory-item {
+      color: #94a3b8;
+      font-style: italic;
+    }
+
+    .memory-meta {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: #64748b;
+      margin-bottom: 2px;
+    }
+
+    /* Bottom Bar */
+    #bottom-bar {
+      height: 180px;
+      background: #0a0705;
+      border-top: 2px solid var(--border-amber);
+      display: flex;
+      flex-shrink: 0;
+      z-index: 100;
+    }
+
+    #info-box {
+      width: 20%;
+      border-right: 1px solid var(--border-amber);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 10px;
+      background: #0c0906;
+    }
+
+    #info-box .day-text {
+      font-family: var(--font-mono);
+      font-size: 15px;
+      font-weight: bold;
+      color: var(--accent-amber);
+    }
+
+    #info-box .phase-text {
+      font-size: 12px;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    #info-box .actions-text {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: #64748b;
+    }
+
+    #dialogue-box {
+      flex: 1;
+      padding: 16px;
+      overflow-y: auto;
+      color: #f1f5f9;
+      font-size: 13.5px;
+      line-height: 1.5;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .dialogue-bubble-npc {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 6px;
+      padding: 10px 14px;
+      max-width: 90%;
+      align-self: flex-start;
+    }
+
+    .dialogue-bubble-player {
+      background: rgba(251, 191, 36, 0.05);
+      border: 1px solid rgba(251, 191, 36, 0.15);
+      border-radius: 6px;
+      padding: 10px 14px;
+      max-width: 90%;
+      align-self: flex-end;
+      color: var(--accent-amber);
+    }
+
+    #input-box {
+      width: 32%;
+      border-left: 1px solid var(--border-amber);
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 8px;
+      background: #0c0906;
+    }
+
+    .prompts-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .btn-prompt {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 4px;
+      color: #cbd5e1;
+      font-size: 10px;
+      padding: 5px 8px;
+      cursor: pointer;
+      text-align: left;
+      transition: all 0.15s;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .btn-prompt:hover:not(:disabled) {
+      background: rgba(251, 191, 36, 0.08);
+      border-color: rgba(251, 191, 36, 0.3);
+      color: #fff;
+    }
+
+    .btn-prompt:disabled {
+      opacity: 0.25;
+      cursor: not-allowed;
+    }
+
+    .custom-input-row {
+      display: flex;
+      gap: 6px;
+    }
+
+    .custom-input-row input {
+      flex: 1;
+      background: #000;
+      border: 1px solid var(--border-amber);
+      border-radius: 4px;
+      color: #fff;
+      padding: 6px 10px;
+      font-size: 11px;
+      font-family: var(--font-sans);
+      outline: none;
+    }
+
+    .custom-input-row input:focus {
+      border-color: var(--accent-amber);
+    }
+
+    .btn-send {
+      background: var(--accent-amber);
+      color: #000;
+      border: none;
+      border-radius: 4px;
+      font-weight: bold;
+      padding: 0 14px;
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-send:hover:not(:disabled) {
+      background: #fbbf24;
+      box-shadow: 0 0 8px rgba(251, 191, 36, 0.4);
+    }
+
+    .btn-send:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Modal overlays */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(4, 3, 2, 0.95);
+      backdrop-filter: blur(6px);
+      z-index: 1000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .modal-card {
+      background: linear-gradient(135deg, #120e0a 0%, #080604 100%);
+      border: 2px solid var(--border-amber-active);
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8), 0 0 25px rgba(251, 191, 36, 0.05);
+      border-radius: 10px;
+      max-width: 580px;
+      width: 100%;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .modal-card h2 {
+      font-family: var(--font-mono);
+      font-size: 18px;
+      color: var(--accent-amber);
+      letter-spacing: 0.5px;
+      border-bottom: 2px solid var(--border-amber);
+      padding-bottom: 6px;
+      text-transform: uppercase;
+    }
+
+    .modal-card p {
+      font-size: 13px;
+      color: #cbd5e1;
+      line-height: 1.5;
+    }
+
+    /* First Load Screen */
+    #first-load-screen {
+      text-align: center;
+      align-items: center;
+    }
+
+    .first-load-input {
+      width: 100%;
+      background: #000;
+      border: 1px solid var(--border-amber);
+      border-radius: 4px;
+      color: #fff;
+      padding: 8px 12px;
+      font-size: 12px;
+      font-family: var(--font-mono);
+      outline: none;
+      margin-top: 4px;
+    }
+
+    .btn-gold {
+      background: var(--accent-amber);
+      color: #000;
+      border: none;
+      border-radius: 4px;
+      font-weight: bold;
+      padding: 10px 24px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+      align-self: center;
+      text-transform: uppercase;
+      font-family: var(--font-mono);
+    }
+
+    .btn-gold:hover {
+      box-shadow: 0 0 14px rgba(251, 191, 36, 0.55);
+      background: #fbbf24;
+    }
+
+    /* Notebook Overlay */
+    .notebook-tabs {
+      display: flex;
+      border-bottom: 1.5px solid var(--border-amber);
+      margin-bottom: 8px;
+    }
+
+    .notebook-tab-btn {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: #64748b;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 8px 0;
+      cursor: pointer;
+    }
+
+    .notebook-tab-btn.active {
+      color: var(--accent-amber);
+      border-bottom: 2px solid var(--accent-amber);
+      font-weight: bold;
+    }
+
+    .notebook-content-pane {
+      max-height: 280px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding-right: 6px;
+    }
+
+    .dossier-item {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      padding: 10px;
+      border-radius: 4px;
+    }
+
+    .dossier-item h4 {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--accent-amber);
+      margin-bottom: 4px;
+    }
+
+    .dossier-item p {
+      font-size: 11px;
+      color: #cbd5e1;
+    }
+
+    .notebook-search-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .btn-search-room {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-amber);
+      border-radius: 4px;
+      color: #cbd5e1;
+      padding: 10px;
+      cursor: pointer;
+      font-family: var(--font-sans);
+      font-size: 11px;
+      transition: all 0.2s;
+    }
+
+    .btn-search-room:hover:not(:disabled) {
+      background: rgba(251, 191, 36, 0.08);
+      border-color: var(--accent-amber);
+      color: #fff;
+    }
+
+    .btn-search-room:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
+    /* Accuse screen */
+    .accuse-suspects-row {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
+      margin: 10px 0;
+    }
+
+    .accuse-suspect-card {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1.5px solid var(--border-amber);
+      border-radius: 6px;
+      padding: 12px 6px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .accuse-suspect-card:hover {
+      border-color: var(--accent-amber);
+      background: rgba(251, 191, 36, 0.04);
+    }
+
+    .accuse-suspect-card.selected {
+      border-color: var(--accent-amber);
+      background: rgba(251, 191, 36, 0.12);
+      box-shadow: 0 0 10px rgba(251, 191, 36, 0.2);
+    }
+
+    .accuse-suspect-card .name {
+      display: block;
+      font-weight: bold;
+      font-size: 12px;
+    }
+
+    /* Night report rumor logs */
+    .night-report-box {
+      max-height: 200px;
+      overflow-y: auto;
+      background: rgba(0, 0, 0, 0.2);
+      border: 1px solid var(--border-amber);
+      padding: 10px;
+      border-radius: 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .night-report-item {
+      font-size: 11px;
+      font-family: var(--font-mono);
+      color: #e2e8f0;
+      line-height: 1.4;
+    }
+
+    /* Diagnostics Ending Box */
+    .ending-diag-box {
+      background: #000;
+      border: 1px solid var(--border-amber);
+      border-radius: 4px;
+      padding: 12px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: #94a3b8;
+      max-height: 160px;
+      overflow-y: auto;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="game-container">
+    
+    <!-- Top telemetry & actions header -->
+    <header id="top-bar">
+      <div class="brand">
+        RAVENWOOD INN
+      </div>
+
+      <div class="top-controls">
+        <button class="btn-action" id="btn-open-notebook">Notebook</button>
+        <button class="btn-action" id="btn-end-day">End Day</button>
+        <button class="btn-action btn-accuse" id="btn-open-accuse">ACCUSE</button>
+      </div>
+    </header>
+
+    <!-- Main Section split -->
+    <main id="main-content">
+      
+      <!-- 3D Room Container -->
+      <div id="three-container"></div>
+
+      <!-- Right stats telemetry diagnostic panel -->
+      <section id="stats-panel">
+        <!-- Selected NPC diagnostics info -->
+        <div id="selected-npc-info" style="display: none;">
+          
+          <div class="npc-header">
+            <div class="npc-portrait-badge" id="hud-portrait">M</div>
+            <div class="npc-header-text">
+              <h2 id="hud-name">Maren</h2>
+              <span id="hud-role">Innkeeper</span>
+            </div>
+          </div>
+
+          <div class="trust-score-label" id="hud-trust-value">
+            Your trust with Maren: 0.30
+          </div>
+
+          <div class="panel-section">
+            <h3>EMOTION ENGINE STATE</h3>
+            <div class="emotions-grid">
+              
+              <div class="emotion-row">
+                <div class="emotion-header">
+                  <span>Anger</span>
+                  <span id="val-anger">0.10</span>
+                </div>
+                <div class="emotion-bar">
+                  <div class="emotion-fill" id="bar-anger" style="background: var(--accent-red); width: 10%;"></div>
+                </div>
+              </div>
+
+              <div class="emotion-row">
+                <div class="emotion-header">
+                  <span>Fear</span>
+                  <span id="val-fear">0.10</span>
+                </div>
+                <div class="emotion-bar">
+                  <div class="emotion-fill" id="bar-fear" style="background: var(--accent-blue); width: 10%;"></div>
+                </div>
+              </div>
+
+              <div class="emotion-row">
+                <div class="emotion-header">
+                  <span>Suspicion</span>
+                  <span id="val-suspicion">0.20</span>
+                </div>
+                <div class="emotion-bar">
+                  <div class="emotion-fill" id="bar-suspicion" style="background: var(--accent-orange); width: 20%;"></div>
+                </div>
+              </div>
+
+              <div class="emotion-row">
+                <div class="emotion-header">
+                  <span>Happiness</span>
+                  <span id="val-happiness">0.60</span>
+                </div>
+                <div class="emotion-bar">
+                  <div class="emotion-fill" id="bar-happiness" style="background: var(--accent-yellow); width: 60%;"></div>
+                </div>
+              </div>
+
+              <div class="emotion-row">
+                <div class="emotion-header">
+                  <span>Trust</span>
+                  <span id="val-trust">0.50</span>
+                </div>
+                <div class="emotion-bar">
+                  <div class="emotion-fill" id="bar-trust" style="background: var(--accent-green); width: 50%;"></div>
+                </div>
+              </div>
+
+              <div class="emotion-row">
+                <div class="emotion-header">
+                  <span>Guilt</span>
+                  <span id="val-guilt">0.00</span>
+                </div>
+                <div class="emotion-bar">
+                  <div class="emotion-fill" id="bar-guilt" style="background: var(--accent-purple); width: 0%;"></div>
+                </div>
+              </div>
+
+              <div class="emotion-row">
+                <div class="emotion-header">
+                  <span>Confidence</span>
+                  <span id="val-confidence">0.70</span>
+                </div>
+                <div class="emotion-bar">
+                  <div class="emotion-fill" id="bar-confidence" style="background: var(--accent-white); width: 70%;"></div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <div class="panel-section">
+            <h3>NPC MEMORY LOG (LAST 3)</h3>
+            <div class="log-list" id="hud-memory-list">
+              <div class="placeholder-text" style="padding: 10px; font-size: 11px;">No memories yet.</div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- If no NPC selected -->
+        <div id="no-npc-info" class="placeholder-text">
+          Select a guest in the 3D room to monitor their CogniCore engine parameters in real time.
+        </div>
+
+        <hr style="border: 0; border-top: 1px solid var(--border-amber); margin: 10px 0 16px 0;">
+
+        <!-- Rumor propagation logs -->
+        <div class="panel-section" style="flex: 1; display: flex; flex-direction: column;">
+          <h3>COGNICORE RUMOR PROPAGATION LOG</h3>
+          <div class="log-list" id="hud-rumor-list" style="flex: 1; min-height: 120px;">
+            <div class="placeholder-text" style="padding: 20px; font-size: 11px;">No rumors have propagated yet.</div>
+          </div>
+        </div>
+
+      </section>
+
+    </main>
+
+    <!-- Bottom Interrogation Dialogue box -->
+    <footer id="bottom-bar">
+      
+      <!-- Turn / Actions Stats -->
+      <div id="info-box">
+        <div class="day-text" id="turn-day">Day 1 of 5</div>
+        <div class="phase-text" id="turn-phase">Morning</div>
+        <div class="actions-text" id="turn-actions">Talks remaining: 3/3</div>
+      </div>
+
+      <!-- Dialogue text display area -->
+      <div id="dialogue-box">
+        <div class="dialogue-bubble-npc">
+          Investigator, a valuable royal safe has been broken into, and the Ravenwood Amulet was stolen last night. Talk to the guests and inspect locations to resolve this mystery.
+        </div>
+      </div>
+
+      <!-- Dialogue Prompts and custom queries -->
+      <div id="input-box">
+        <div class="prompts-list">
+          <button class="btn-prompt" id="btn-prompt-alibi" disabled>Ask about their alibi</button>
+          <button class="btn-prompt" id="btn-prompt-trust" disabled>Ask if they trust other guests</button>
+          <button class="btn-prompt" id="btn-prompt-secret" disabled>Inquire about their secrets</button>
+        </div>
+
+        <div class="custom-input-row">
+          <input type="text" id="input-query" placeholder="Type investigator query..." disabled>
+          <button class="btn-send" id="btn-send-query" disabled>SEND</button>
+        </div>
+      </div>
+
+    </footer>
+
+  </div>
+
+  <!-- OVERLAY MODALS -->
+
+  <!-- 1. Intro Screen & API Key Input -->
+  <div class="modal-overlay" id="modal-first-load">
+    <div class="modal-card" id="first-load-screen">
+      <h2 style="font-size: 22px;">The Last Supper at Ravenwood Inn</h2>
+      <p style="margin: 8px 0; font-size: 13.5px; line-height: 1.6;">
+        An interactive simulation showcasing the <strong>CogniCore NPC Intelligence Framework</strong>. 
+        A royal artifact has been stolen. Five suspects remain inside the inn. You have five days to identify the thief.
+      </p>
+      
+      <div style="text-align: left; width: 100%; display: flex; flex-direction: column; gap: 8px; margin: 10px 0;">
+        <div>
+          <label style="font-family: var(--font-mono); font-size: 11px; color: var(--accent-amber);">Anthropic API Key (Optional):</label>
+          <input type="password" id="input-api-key" class="first-load-input" placeholder="sk-ant-...">
+          <span style="font-size: 9px; color: #888;">If empty, the game will run in offline mode using a robust template-driven dialogue engine.</span>
+        </div>
+        <div>
+          <label style="font-family: var(--font-mono); font-size: 11px; color: var(--accent-amber);">CORS Proxy Prefix (Recommended for Live Mode):</label>
+          <input type="text" id="input-proxy-prefix" class="first-load-input" value="https://corsproxy.io/?">
+          <span style="font-size: 9px; color: #888;">To bypass direct client-side requests blocks. Leave blank if your proxy isn't required.</span>
+        </div>
+      </div>
+
+      <button class="btn-gold" id="btn-start-investigation">Start Investigation</button>
+    </div>
+  </div>
+
+  <!-- 2. Notebook Modal -->
+  <div class="modal-overlay" id="modal-notebook" style="display: none;">
+    <div class="modal-card">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h2>Investigator's Notebook</h2>
+        <button class="btn-action" style="padding: 4px 10px;" id="btn-close-notebook">X</button>
+      </div>
+
+      <div class="notebook-tabs">
+        <button class="notebook-tab-btn active" id="tab-btn-dossier">Suspect Dossier</button>
+        <button class="notebook-tab-btn" id="tab-btn-clues">Clues Collected</button>
+        <button class="notebook-tab-btn" id="tab-btn-search">Search Location</button>
+      </div>
+
+      <!-- Sub-pane 1: Suspect Dossiers -->
+      <div id="pane-dossiers" class="notebook-content-pane">
+        <div class="dossier-item">
+          <h4>Maren (Innkeeper)</h4>
+          <p>Personality: Honesty 0.9, Suspicion 0.2, Greed 0.1. Protective, observant, and hates dishonest trade deals.</p>
+        </div>
+        <div class="dossier-item">
+          <h4>Dorian (Merchant)</h4>
+          <p>Personality: Honesty 0.3, Greed 0.8, Suspicion 0.4. Shifty merchant who loves shiny items and hoards invoices.</p>
+        </div>
+        <div class="dossier-item">
+          <h4>Sable (Scholar)</h4>
+          <p>Personality: Honesty 0.8, Curiosity 0.9, Suspicion 0.7. Extremely analytical, keeps notes on maps and rooms.</p>
+        </div>
+        <div class="dossier-item">
+          <h4>Fen (Retired Soldier)</h4>
+          <p>Personality: Honesty 0.7, Loyalty 0.8, Openness 0.2. Loyal soldier, highly protective, guards entry points.</p>
+        </div>
+        <div class="dossier-item">
+          <h4>Vex (Performer)</h4>
+          <p>Personality: Honesty 0.5, Charm 0.85, Suspicion 0.3. Fast speaker, charismatic, keeps watch on stable movements.</p>
+        </div>
+      </div>
+
+      <!-- Sub-pane 2: Collected Clues -->
+      <div id="pane-clues" class="notebook-content-pane" style="display: none;">
+        <div class="placeholder-text" id="clues-empty-text" style="padding: 40px 10px;">No clues collected yet. Ask questions or search rooms to find evidence.</div>
+        <div id="clues-list-container" style="display: flex; flex-direction: column; gap: 8px;"></div>
+      </div>
+
+      <!-- Sub-pane 3: Search Location -->
+      <div id="pane-search" class="notebook-content-pane" style="display: none;">
+        <p style="margin-bottom: 12px; font-size: 12.5px;">
+          Select a room inside the Ravenwood Inn to inspect. Searching a room consumes <strong>1 Action</strong>. 
+          If you search the culprit's actual location, you will find physical evidence that unlocks an ending path.
+        </p>
+        <div class="notebook-search-grid">
+          <button class="btn-search-room" data-room="Cellar">🍷 Cellar</button>
+          <button class="btn-search-room" data-room="Library">📚 Library</button>
+          <button class="btn-search-room" data-room="Stable">🐴 Stable</button>
+          <button class="btn-search-room" data-room="Attic">📦 Attic</button>
+          <button class="btn-search-room" data-room="Parlor">🛋️ Parlor</button>
+        </div>
+        <div id="search-result-log" style="margin-top: 10px; font-family: var(--font-mono); font-size: 11px; color: var(--accent-amber);"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. Accuse Suspect Modal -->
+  <div class="modal-overlay" id="modal-accuse" style="display: none;">
+    <div class="modal-card">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h2>Identify the Thief</h2>
+        <button class="btn-action" style="padding: 4px 10px;" id="btn-close-accuse">X</button>
+      </div>
+      <p style="font-size: 12.5px;">Accusing a guest ends the investigation. Select a suspect and pair it with the corresponding proof:</p>
+      
+      <div class="accuse-suspects-row">
+        <div class="accuse-suspect-card" data-npc="Maren">
+          <span class="name">Maren</span>
+        </div>
+        <div class="accuse-suspect-card" data-npc="Dorian">
+          <span class="name">Dorian</span>
+        </div>
+        <div class="accuse-suspect-card" data-npc="Sable">
+          <span class="name">Sable</span>
+        </div>
+        <div class="accuse-suspect-card" data-npc="Fen">
+          <span class="name">Fen</span>
+        </div>
+        <div class="accuse-suspect-card" data-npc="Vex">
+          <span class="name">Vex</span>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <label style="font-family: var(--font-mono); font-size: 10px; color: #cbd5e1;">SELECT ATTACHED CLUE FOR ACCUSATION:</label>
+        <select id="accuse-clue-select" style="background: #000; border: 1.5px solid var(--border-amber); border-radius: 4px; color: #fff; padding: 8px; font-family: var(--font-sans); outline: none;">
+          <option value="none">No Physical Clues Present (Accuse on Word Alone)</option>
+        </select>
+      </div>
+
+      <button class="btn-gold" id="btn-confirm-accuse" style="margin-top: 10px; width: 100%;">Confirm Accusation</button>
+    </div>
+  </div>
+
+  <!-- 4. Night Transition Overlay -->
+  <div class="modal-overlay" id="modal-transition" style="display: none;">
+    <div class="modal-card" style="max-width: 500px; text-align: center;">
+      <h2 style="font-size: 20px;">Night falls on Ravenwood Inn...</h2>
+      <p style="font-style: italic; color: #888; font-size: 12px; margin-top: 4px;">The guests gather in shadows, whispering secrets to each other.</p>
+      
+      <div style="margin: 12px 0; text-align: left;">
+        <div style="font-family: var(--font-mono); font-size: 10px; color: var(--accent-amber); margin-bottom: 6px; text-transform: uppercase;">Overnight Gossip Report:</div>
+        <div class="night-report-box" id="night-gossip-list">
+          <div class="placeholder-text" style="padding: 10px; font-size: 11px;">Whispers were lost to the wind tonight.</div>
+        </div>
+      </div>
+
+      <button class="btn-gold" id="btn-transition-next-day" style="width: 100%;">Wake Up (Next Day)</button>
+    </div>
+  </div>
+
+  <!-- 5. Ending Screen Modal -->
+  <div class="modal-overlay" id="modal-ending" style="display: none;">
+    <div class="modal-card" style="max-width: 540px; align-items: center; text-align: center;">
+      <h2 id="ending-title" style="font-size: 22px;">Ending Resolved</h2>
+      <p id="ending-description" style="font-size: 13.5px; line-height: 1.6; margin: 10px 0;">
+        Description of ending here...
+      </p>
+
+      <div style="width: 100%; text-align: left; display: flex; flex-direction: column; gap: 6px;">
+        <div style="font-family: var(--font-mono); font-size: 10px; color: var(--accent-amber); text-transform: uppercase;">How CogniCore Told This Story:</div>
+        <div class="ending-diag-box" id="ending-diagnostics">
+          <!-- Diagnostics parameters -->
+        </div>
+      </div>
+
+      <button class="btn-gold" id="btn-restart-game" style="margin-top: 10px; width: 100%;">Investigate Again</button>
+    </div>
+  </div>
+
+  <!-- JAVASCRIPT SIMULATION LOGIC -->
+  <script>
+    // --- COGNICORE ENGINE CLASSES ---
+
+    // 1. EmotionEngine
+    class EmotionEngine {
+      constructor(personality, isCulprit) {
+        // Initial values based on character configuration and culprit status
+        this.baselines = {
+          anger: 0.1,
+          fear: isCulprit ? 0.25 : 0.1,
+          suspicion: personality.suspicion || 0.3,
+          happiness: 0.5 - (personality.greed || 0.1) * 0.2,
+          trust: 0.4,
+          guilt: isCulprit ? 0.35 : 0.0,
+          confidence: 0.6
+        };
+        
+        this.current = { ...this.baselines };
+      }
+
+      process_event(type) {
+        if (type === "accused") {
+          this.current.anger = Math.min(1.0, this.current.anger + 0.3);
+          this.current.fear = Math.min(1.0, this.current.fear + 0.2);
+          this.current.suspicion = Math.min(1.0, this.current.suspicion + 0.25);
+        } else if (type === "caught_lying") {
+          this.current.guilt = Math.min(1.0, this.current.guilt + 0.4);
+          this.current.confidence = Math.max(0.0, this.current.confidence - 0.3);
+        } else if (type === "trusted_secret") {
+          this.current.happiness = Math.min(1.0, this.current.happiness + 0.2);
+          this.current.trust = Math.min(1.0, this.current.trust + 0.3);
+        } else if (type === "threatened") {
+          this.current.fear = Math.min(1.0, this.current.fear + 0.4);
+          this.current.anger = Math.min(1.0, this.current.anger + 0.2);
+        }
+      }
+
+      tick() {
+        // Decay back toward baseline values by 10%
+        for (let key in this.current) {
+          const diff = this.baselines[key] - this.current[key];
+          this.current[key] += diff * 0.1;
+        }
+      }
+    }
+
+    // 2. MemoryStore
+    class MemoryStore {
+      constructor() {
+        this.memories = []; // Array of {content, timestamp, keywords}
+      }
+
+      add(content, timestamp = 1, keywords = []) {
+        this.memories.push({ content, timestamp, keywords });
+      }
+
+      query(keyword) {
+        if (!keyword) return this.memories.slice(-3);
+        const kw = keyword.toLowerCase();
+        return this.memories
+          .filter(m => m.content.toLowerCase().includes(kw) || m.keywords.some(k => k.toLowerCase() === kw))
+          .slice(-3);
+      }
+    }
+
+    // 3. RelationshipGraph
+    class RelationshipGraph {
+      constructor(suspects) {
+        this.matrix = {};
+        suspects.forEach(a => {
+          this.matrix[a] = {};
+          suspects.forEach(b => {
+            if (a === b) return;
+            this.matrix[a][b] = {
+              trust: 0.4 + Math.random() * 0.2,
+              suspicion: 0.2 + Math.random() * 0.3,
+              friendship: 0.3 + Math.random() * 0.3
+            };
+          });
+          // Player relation
+          this.matrix[a]["Player"] = {
+            trust: 0.30,
+            suspicion: 0.20,
+            friendship: 0.30
+          };
+        });
+      }
+
+      get(a, b) {
+        return this.matrix[a]?.[b] || { trust: 0.3, suspicion: 0.3, friendship: 0.3 };
+      }
+
+      update(a, b, key, delta) {
+        if (this.matrix[a]?.[b]) {
+          this.matrix[a][b][key] = Math.max(0.0, Math.min(1.0, this.matrix[a][b][key] + delta));
+        }
+      }
+    }
+
+    // 4. RumorSystem
+    class RumorSystem {
+      constructor() {
+        this.allRumors = [];
+      }
+
+      mutate(rumor, speakerHonesty, speakerSuspicion) {
+        let mutatedContent = rumor.content;
+        let newFidelity = rumor.fidelity;
+
+        // Honesty reduces rumor mutation stability
+        if (speakerHonesty < 0.4) {
+          newFidelity -= (1.0 - speakerHonesty) * 0.2;
+          const exaggerations = ["definitely", "clearly", "without a doubt", "obviously"];
+          const word = exaggerations[Math.floor(Math.random() * exaggerations.length)];
+          mutatedContent = mutatedContent.replace("took", `${word} took`);
+          mutatedContent = mutatedContent.replace("was", `was ${word}`);
+        }
+
+        // Suspicion adds shifty framings
+        if (speakerSuspicion > 0.6) {
+          const framing = "was acting strangely near";
+          mutatedContent = mutatedContent.replace("was in", `was acting strangely near`);
+        }
+
+        return {
+          content: mutatedContent,
+          fidelity: Math.max(0.1, Math.round(newFidelity * 100) / 100),
+          originAgentId: rumor.originAgentId,
+          aboutAgentId: rumor.aboutAgentId
+        };
+      }
+    }
+
+    // 5. SecretSystem
+    class SecretSystem {
+      revealSecret(npc, playerTrust) {
+        return playerTrust >= npc.secretThreshold;
+      }
+    }
+
+
+    // --- GAME MODULE ENGINE STATE ---
+
+    const NPC_CONFIG = {
+      Maren: {
+        name: "Maren", role: "Innkeeper", color: 0x8b5a2b, // warm brown
+        honesty: 0.9, suspicion: 0.2, greed: 0.1,
+        secret: "I saw someone near the vault but I'm scared to say who.",
+        secretThreshold: 0.50,
+        position: { x: -3.0, y: 0.1, z: -1.0 }
+      },
+      Dorian: {
+        name: "Dorian", role: "Merchant", color: 0x4b0082, // indigo/purple
+        honesty: 0.3, greed: 0.8, suspicion: 0.4,
+        secret: "I have debts. I needed that artifact more than anyone.",
+        secretThreshold: 0.70,
+        position: { x: 2.5, y: 0.1, z: -0.8 }
+      },
+      Sable: {
+        name: "Sable", role: "Scholar", color: 0x475569, // slate blue
+        honesty: 0.8, curiosity: 0.9, suspicion: 0.7,
+        secret: "I know what the artifact actually is. It's not what the owner claims.",
+        secretThreshold: 0.55,
+        position: { x: -1.8, y: 0.1, z: 2.2 }
+      },
+      Fen: {
+        name: "Fen", role: "Retired Soldier", color: 0x2e8b57, // military green
+        honesty: 0.7, loyalty: 0.8, openness: 0.2, suspicion: 0.5,
+        secret: "I'm protecting someone. I won't say who.",
+        secretThreshold: 0.60,
+        position: { x: 3.2, y: 0.1, z: 1.8 }
+      },
+      Vex: {
+        name: "Vex", role: "Performer", color: 0xb91c1c, // crimson red
+        honesty: 0.5, charm: 0.85, suspicion: 0.3,
+        secret: "I was blackmailing the artifact's owner before it went missing.",
+        secretThreshold: 0.65,
+        position: { x: 0.6, y: 0.1, z: -2.8 }
+      }
+    };
+
+    let state = {
+      day: 1,
+      phase: "Morning",
+      actionsLeft: 3, // talks left per day
+      culprit: "",
+      backer: "",
+      falseAlibiLocation: "",
+      alibis: {},
+      cluesCollected: [], // Array of {content, source, day, type}
+      searchedRooms: [],
+      selectedNPC: null,
+      npcs: {},
+      relationshipGraph: null,
+      rumorSystem: new RumorSystem(),
+      rumorHistory: [], // elements: {from, to, content, fidelity}
+      dialogueLogs: {}, // name -> Array of dialogue items
+      apiKey: "",
+      proxyPrefix: "",
+      secretsRevealed: [],
+      rumorMutationSpikes: [], // logs for endings page
+      maxEmotionsSpike: { name: "", emotion: "", value: 0 }
+    };
+
+    // --- GAME INITIALIZATION ---
+
+    function initGame() {
+      state.day = 1;
+      state.phase = "Morning";
+      state.actionsLeft = 3;
+      state.cluesCollected = [];
+      state.searchedRooms = [];
+      state.selectedNPC = null;
+      state.rumorHistory = [];
+      state.dialogueLogs = {};
+      state.secretsRevealed = [];
+      state.rumorMutationSpikes = [];
+      state.maxEmotionsSpike = { name: "", emotion: "", value: 0 };
+      
+      state.rumorSystem = new RumorSystem();
+
+      const suspects = Object.keys(NPC_CONFIG);
+
+      // Randomize Culprit & Backer alibi logic
+      state.culprit = suspects[Math.floor(Math.random() * 5)];
+      const backers = suspects.filter(s => s !== state.culprit);
+      state.backer = backers[Math.floor(Math.random() * 4)];
+
+      const locations = ["Cellar", "Library", "Stable", "Attic", "Parlor"];
+      state.falseAlibiLocation = locations[Math.floor(Math.random() * 5)];
+
+      // Generate alibi mapping
+      state.alibis = {};
+      state.alibis[state.culprit] = `I was in the ${state.falseAlibiLocation} sorting logs with ${state.backer} during the supper hour. We can back each other up.`;
+      state.alibis[state.backer] = `I can vouch for ${state.culprit}. We were in the ${state.falseAlibiLocation} together checking inventory the whole evening.`;
+
+      // Innocent alibis
+      const innocents = suspects.filter(s => s !== state.culprit && s !== state.backer);
+      const remainingLocs = locations.filter(l => l !== state.falseAlibiLocation);
+      innocents.forEach((suspect, idx) => {
+        const loc = remainingLocs[idx % remainingLocs.length];
+        state.alibis[suspect] = `I was alone in the ${loc} analyzing documents. Nobody else visited me.`;
+      });
+
+      // The culprit's actual items / clue locations (associated with the crime scene)
+      // Culprit's evidence is placed in a real location they visited (other than false alibi)
+      const realLocs = locations.filter(l => l !== state.falseAlibiLocation);
+      state.culpritRealLocation = realLocs[Math.floor(Math.random() * realLocs.length)];
+
+      // Build NPCs structures
+      suspects.forEach(id => {
+        const conf = NPC_CONFIG[id];
+        const isCulprit = (id === state.culprit);
+        
+        state.npcs[id] = {
+          ...conf,
+          isCulprit: isCulprit,
+          emotions: new EmotionEngine(conf, isCulprit),
+          memory: new MemoryStore(),
+          rumors: [] // rumors currently believed by this NPC
+        };
+
+        state.npcs[id].memory.add(`Arrived at Ravenwood Inn for supper.`, 1, ["arrival"]);
+        if (isCulprit) {
+          state.npcs[id].memory.add(`I sneaked into the Safe vault and took the Ravenwood Amulet.`, 1, ["theft", "amulet"]);
+        }
+
+        state.dialogueLogs[id] = [];
+      });
+
+      // Seeding relationships
+      state.relationshipGraph = new RelationshipGraph(suspects);
+
+      // Seed initial rumors in the system
+      const initialRumor = {
+        content: `The Ravenwood Amulet was taken by someone seen heading to the ${state.culpritRealLocation}.`,
+        fidelity: 1.0,
+        originAgentId: "System",
+        aboutAgentId: state.culprit
+      };
+      
+      // Seed rumor randomly to 2 innocent NPCs
+      innocents.forEach(innocent => {
+        state.npcs[innocent].rumors.push({ ...initialRumor });
+      });
+
+      // Update Top HUD Day Accuse button
+      const accuseBtn = document.getElementById("btn-open-accuse");
+      accuseBtn.style.display = "none";
+
+      deselectNPC();
+      spawnCharacters();
+      updateUI();
+      renderDialogueBubble("NPC", "Investigator, a valuable royal safe has been broken into, and the Ravenwood Amulet was stolen last night. Talk to the guests and inspect locations to resolve this mystery.");
+    }
+
+    // --- THREE.JS 3D ENGINE ---
+
+    let scene, camera, renderer;
+    let candlePoints = [];
+    const npcObjects = {};
+    let highlightRing;
+
+    let targetCamPos = new THREE.Vector3(0, 5, 8);
+    let targetLookAt = new THREE.Vector3(0, 0.8, -0.5);
+    let currentLookAt = new THREE.Vector3(0, 0.8, -0.5);
+
+    function initThree() {
+      const container = document.getElementById("three-container");
+      container.innerHTML = ""; // Clear existing
+
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+
+      // 1. Scene & Fog
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x1a0f00); // Warm reddish dark wood color
+      scene.fog = new THREE.FogExp2(0x1a0f00, 0.04);
+
+      // 2. Camera
+      camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
+      camera.position.copy(targetCamPos);
+
+      // 3. Renderer
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(width, height);
+      renderer.shadowMap.enabled = true;
+      container.appendChild(renderer.domElement);
+
+      // 4. Lights
+      const ambientLight = new THREE.AmbientLight(0x331100, 0.6); // dim orange
+      scene.add(ambientLight);
+
+      // Flickering candle light sources
+      for (let i = 0; i < 2; i++) {
+        const light = new THREE.PointLight(0xffaa44, 1.8, 12);
+        light.position.set(i === 0 ? -1.5 : 1.5, 1.3, -0.5);
+        light.castShadow = true;
+        scene.add(light);
+        candlePoints.push(light);
+      }
+
+      // Spotlight above selected character
+      const spotLight = new THREE.SpotLight(0xfff0aa, 1.0, 15, Math.PI / 6, 0.5, 1);
+      spotLight.position.set(0, 5, 0);
+      spotLight.castShadow = true;
+      spotLight.visible = false;
+      scene.add(spotLight);
+      scene.spotLightRef = spotLight;
+
+      // 5. Room Geometry (Floor and Table)
+      // Floor
+      const floorGeo = new THREE.BoxGeometry(12, 0.2, 12);
+      const floorMat = new THREE.MeshStandardMaterial({ color: 0x3d2314, roughness: 0.85 });
+      const floor = new THREE.Mesh(floorGeo, floorMat);
+      floor.position.y = -0.1;
+      floor.receiveShadow = true;
+      scene.add(floor);
+
+      // Walls
+      const backWallGeo = new THREE.BoxGeometry(12, 4, 0.4);
+      const backWallMat = new THREE.MeshStandardMaterial({ color: 0x261d15, roughness: 0.9 });
+      const backWall = new THREE.Mesh(backWallGeo, backWallMat);
+      backWall.position.set(0, 1.9, -5.8);
+      backWall.receiveShadow = true;
+      scene.add(backWall);
+
+      // Wooden Table
+      const tableGeo = new THREE.BoxGeometry(4.0, 0.7, 1.4);
+      const tableMat = new THREE.MeshStandardMaterial({ color: 0x22130b, roughness: 0.7 });
+      const table = new THREE.Mesh(tableGeo, tableMat);
+      table.position.set(0, 0.35, -0.5);
+      table.castShadow = true;
+      table.receiveShadow = true;
+      scene.add(table);
+
+      // Candles on the table
+      for (let i = 0; i < 2; i++) {
+        const candleGroup = new THREE.Group();
+        const candGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.25, 6);
+        const candMat = new THREE.MeshStandardMaterial({ color: 0xffeedd });
+        const candle = new THREE.Mesh(candGeo, candMat);
+        candle.position.y = 0.125;
+        candleGroup.add(candle);
+
+        // Flame
+        const flameGeo = new THREE.SphereGeometry(0.03, 5, 5);
+        const flameMat = new THREE.MeshBasicMaterial({ color: 0xffaa00 });
+        const flame = new THREE.Mesh(flameGeo, flameMat);
+        flame.position.y = 0.26;
+        candleGroup.add(flame);
+
+        candleGroup.position.set(i === 0 ? -1.5 : 1.5, 0.7, -0.5);
+        scene.add(candleGroup);
+      }
+
+      // Highlight Ring
+      const ringGeo = new THREE.TorusGeometry(0.42, 0.02, 3, 24);
+      const ringMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+      highlightRing = new THREE.Mesh(ringGeo, ringMat);
+      highlightRing.rotation.x = Math.PI / 2;
+      highlightRing.visible = false;
+      scene.add(highlightRing);
+
+      // 6. Spawn Characters function definition
+      window.spawnCharacters = function() {
+        // Clean up any existing NPC groups in the scene
+        Object.keys(npcObjects).forEach(id => {
+          const group = npcObjects[id];
+          if (group) scene.remove(group);
+          
+          // Remove floating tag DOM element
+          const el = document.getElementById(`tag-${id}`);
+          if (el) el.remove();
+          
+          delete npcObjects[id];
+          delete labelDomRefs[id];
+        });
+
+        // Spawn characters
+        Object.entries(state.npcs).forEach(([id, npc]) => {
+          const group = new THREE.Group();
+
+          // Body (Cylinder)
+          const bodyGeo = new THREE.CylinderGeometry(0.24, 0.32, 0.9, 8);
+          const bodyMat = new THREE.MeshStandardMaterial({ color: npc.color, roughness: 0.65 });
+          const body = new THREE.Mesh(bodyGeo, bodyMat);
+          body.position.y = 0.45;
+          body.castShadow = true;
+          body.receiveShadow = true;
+          group.add(body);
+
+          // Head (Sphere)
+          const headGeo = new THREE.SphereGeometry(0.2, 10, 10);
+          const headMat = new THREE.MeshStandardMaterial({ color: 0xf4c49a, roughness: 0.5 });
+          const head = new THREE.Mesh(headGeo, headMat);
+          head.position.y = 1.05;
+          head.castShadow = true;
+          group.add(head);
+
+          // Eyes (two tiny dark spheres)
+          const eyeGeo = new THREE.SphereGeometry(0.025, 4, 4);
+          const eyeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+          
+          const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+          leftEye.position.set(-0.06, 0.05, 0.17);
+          head.add(leftEye);
+
+          const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+          rightEye.position.set(0.06, 0.05, 0.17);
+          head.add(rightEye);
+
+          group.position.set(npc.position.x, npc.position.y, npc.position.z);
+          scene.add(group);
+          npcObjects[id] = group;
+
+          // Build HTML floating tag dynamically
+          createFloatingTag(id, npc);
+        });
+      };
+
+      // Raycasting selection
+      const raycaster = new THREE.Raycaster();
+      const mouse = new THREE.Vector2();
+
+      const onCanvasClick = (e) => {
+        const rect = renderer.domElement.getBoundingClientRect();
+        mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObjects(scene.children, true);
+
+        if (intersects.length > 0) {
+          let clickedObj = intersects[0].object;
+          let clickedId = null;
+
+          while (clickedObj && clickedObj !== scene) {
+            clickedId = Object.keys(npcObjects).find(k => npcObjects[k] === clickedObj);
+            if (clickedId) break;
+            clickedObj = clickedObj.parent;
+          }
+          if (clickedId) {
+            selectNPC(clickedId);
+          } else {
+            deselectNPC();
+          }
+        }
+      };
+
+      renderer.domElement.addEventListener('click', onCanvasClick);
+
+      // Window resize
+      const onResize = () => {
+        if (!container || !renderer || !camera) return;
+        const w = container.clientWidth;
+        const h = container.clientHeight;
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+        renderer.setSize(w, h);
+      };
+      window.addEventListener('resize', onResize);
+
+      // Animate Loop
+      const animate = () => {
+        const time = Date.now();
+
+        // Flickering candlelight
+        candlePoints.forEach((light, idx) => {
+          light.intensity = 1.6 + Math.sin(time * 0.006 + idx) * 0.18 + Math.random() * 0.05;
+        });
+
+        // Bob & animate NPCs based on emotions
+        Object.entries(npcObjects).forEach(([id, obj]) => {
+          const npc = state.npcs[id];
+          const emo = npc.emotions.current;
+
+          // Idle up-down bob
+          obj.position.y = npc.position.y + Math.sin(time * 0.0028 + id.charCodeAt(0)) * 0.022;
+
+          // Body tinting visual feedback
+          const bodyMesh = obj.children[0];
+          let baseCol = new THREE.Color(npc.color);
+          if (emo.anger > 0.5) {
+            baseCol.lerp(new THREE.Color(0xef4444), (emo.anger - 0.5) * 2.0); // red
+          } else if (emo.fear > 0.5) {
+            baseCol.lerp(new THREE.Color(0xa0c0ff), (emo.fear - 0.5) * 2.0); // blue
+          }
+          bodyMesh.material.color.copy(baseCol);
+
+          // Head animation
+          const head = obj.children[1];
+          // Guilt -> look slightly downward
+          if (emo.guilt > 0.5) {
+            head.rotation.x = THREE.MathUtils.lerp(head.rotation.x, 0.28, 0.1);
+          } else {
+            head.rotation.x = THREE.MathUtils.lerp(head.rotation.x, 0, 0.1);
+          }
+
+          // Suspicion -> glance side to side
+          if (emo.suspicion > 0.5) {
+            head.rotation.y = Math.sin(time * 0.0048) * 0.25;
+          } else {
+            head.rotation.y = THREE.MathUtils.lerp(head.rotation.y, 0, 0.1);
+          }
+
+          // Project screen coordinates for floating label overlays
+          updateFloatingTagPos(id, obj);
+        });
+
+        // Camera positioning interpolation
+        camera.position.lerp(targetCamPos, 0.06);
+        currentLookAt.lerp(targetLookAt, 0.06);
+        camera.lookAt(currentLookAt);
+
+        // Highlight ring animation
+        if (state.selectedNPC) {
+          highlightRing.rotation.z += 0.01;
+        }
+
+        renderer.render(scene, camera);
+        requestAnimationFrame(animate);
+      };
+
+      animate();
+    }
+
+    // Floating Screen Projected tags
+    const labelDomRefs = {};
+
+    function createFloatingTag(id, npc) {
+      const container = document.getElementById("three-container");
+      const tag = document.createElement("div");
+      tag.id = `tag-${id}`;
+      tag.className = "floating-npc-tag";
+
+      tag.innerHTML = `
+        <div class="tag-bubble" id="bubble-${id}">💤 Idle</div>
+      `;
+
+      container.appendChild(tag);
+      labelDomRefs[id] = tag;
+    }
+
+    function updateFloatingTagPos(id, obj) {
+      const el = labelDomRefs[id];
+      if (!el || !camera || !renderer) return;
+
+      const tempV = new THREE.Vector3();
+      obj.getWorldPosition(tempV);
+      tempV.y += 1.45; // Above head
+
+      tempV.project(camera);
+
+      const width = renderer.domElement.clientWidth;
+      const height = renderer.domElement.clientHeight;
+
+      const x = (tempV.x * 0.5 + 0.5) * width;
+      const y = (tempV.y * -0.5 + 0.5) * height;
+
+      el.style.left = `${x}px`;
+      el.style.top = `${y}px`;
+
+      // Update text status based on dialogue state
+      const bubble = document.getElementById(`bubble-${id}`);
+      let status = "💤 Idle";
+
+      const dialogue = state.dialogueLogs[id];
+      if (dialogue && dialogue.length > 0) {
+        const last = dialogue[dialogue.length - 1];
+        if (last.speaker === "Player") {
+          status = "❓ Listening...";
+        } else {
+          status = `💬 "${last.text}"`;
+        }
+      }
+
+      bubble.innerText = status;
+    }
+
+    // --- GAMEPLAY CONTROL LOGIC ---
+
+    function selectNPC(id) {
+      state.selectedNPC = id;
+      const obj = npcObjects[id];
+
+      // Smooth camera lerp targets
+      targetCamPos.set(obj.position.x, obj.position.y + 1.1, obj.position.z + 2.2);
+      targetLookAt.set(obj.position.x, obj.position.y + 0.85, obj.position.z);
+
+      // Highlight Ring
+      highlightRing.position.set(obj.position.x, 0.02, obj.position.z);
+      highlightRing.visible = true;
+
+      // Spotlight placement
+      scene.spotLightRef.position.set(obj.position.x, 4.0, obj.position.z);
+      scene.spotLightRef.target = obj;
+      scene.spotLightRef.visible = true;
+
+      updateUI();
+      
+      const dialogue = state.dialogueLogs[id] || [];
+      if (dialogue.length > 0) {
+        const last = dialogue[dialogue.length - 1];
+        renderDialogueBubble(last.speaker === "Player" ? "Player" : "NPC", last.text);
+      } else {
+        renderDialogueBubble("NPC", `(Approached ${id}. They look at you, waiting.)`);
+      }
+    }
+
+    function deselectNPC() {
+      state.selectedNPC = null;
+      targetCamPos.set(0, 5, 8);
+      targetLookAt.set(0, 0.8, -0.5);
+
+      highlightRing.visible = false;
+      scene.spotLightRef.visible = false;
+
+      updateUI();
+    }
+
+    // --- INTERROGATION ENGINE ---
+
+    // Simple offline template database
+    function generateOfflineResponse(id, queryText) {
+      const npc = state.npcs[id];
+      const trust = state.relationshipGraph.get(id, "Player").trust;
+      const emotions = npc.emotions.current;
+      const q = queryText.toLowerCase();
+
+      // Log memory
+      npc.memory.add(`Investigator interrogated me on: "${queryText}"`, state.day, ["interrogation"]);
+
+      // Alibi queries
+      if (q.includes("alibi") || q.includes("where were you") || q.includes("supper")) {
+        // Suspicions & fear increments
+        npc.emotions.update = (k, v) => npc.emotions.current[k] = Math.max(0, Math.min(1, npc.emotions.current[k] + v));
+        npc.emotions.update("suspicion", 0.05);
+
+        if (id === state.culprit) {
+          npc.emotions.update("fear", 0.1);
+          return state.alibis[state.culprit];
+        }
+
+        if (id === state.backer) {
+          // If trust is high enough, backer will confess the alibi is false!
+          if (trust >= npc.secretThreshold) {
+            npc.emotions.process_event("caught_lying");
+            addClue(`Confession: ${id} admitted they lied to cover for ${state.culprit}'s alibi.`, id, "Alibi Defect");
+            return `Actually... I have to confess. I lied to cover for ${state.culprit}. They weren't with me. They asked me to cover for them because I owe them a massive favor.`;
+          }
+          return state.alibis[state.backer];
+        }
+
+        return state.alibis[id];
+      }
+
+      // Secret queries
+      if (q.includes("secret") || q.includes("hide") || q.includes("hiding")) {
+        if (state.relationshipGraph.get(id, "Player").trust >= npc.secretThreshold) {
+          npc.emotions.process_event("trusted_secret");
+          if (!state.secretsRevealed.includes(id)) {
+            state.secretsRevealed.push(id);
+            addClue(`Secret: ${id} revealed - "${npc.secret}"`, id, "Secret");
+          }
+          return `Alright, I will trust you with this. ${npc.secret}`;
+        } else {
+          npc.emotions.process_event("threatened");
+          state.relationshipGraph.update(id, "Player", "trust", -0.06);
+          
+          if (id === "Dorian") return "My business stays private. Ask the others if you want gossip, investigator.";
+          if (id === "Fen") return "I have nothing to report to you. A soldier guards their own details.";
+          if (id === "Sable") return "Information is valuable. I do not share it with people I do not trust.";
+          if (id === "Vex") return "Secrets make a performer charm, investigator. I keep mine close.";
+          return "I have run this inn for years honestly. I have nothing to hide from travelers.";
+        }
+      }
+
+      // Trust queries about other characters
+      for (let key in NPC_CONFIG) {
+        if (q.includes(key.toLowerCase())) {
+          const rel = state.relationshipGraph.get(id, key);
+          const trustDesc = rel.trust > 0.55 ? "vouch for them completely" : rel.trust < 0.35 ? "find them highly shifty" : "keep my distance";
+          
+          if (id === key) return "You want to talk about me? I have done nothing wrong.";
+          return `Regarding ${key}... I usually ${trustDesc}. They keep their motives close.`;
+        }
+      }
+
+      // Default replies
+      if (npc.isCulprit) {
+        npc.emotions.update("fear", 0.05);
+        return "I hope you find the thief soon, investigator. The lockbox safety should have been managed better.";
+      }
+      return "Tensions are mounting in Ravenwood. I hope you find the thief soon so we can all leave.";
+    }
+
+    // Anthropic API fetch integration
+    async function queryAnthropicAPI(id, queryText) {
+      const npc = state.npcs[id];
+      const trustScore = state.relationshipGraph.get(id, "Player").trust;
+      const emotions = npc.emotions.current;
+      const recentMems = npc.memory.query("").map(m => m.content).join("; ");
+      const npcRumors = npc.rumors.map(r => `"${r.content}" (fidelity: ${Math.round(r.fidelity*100)}%)`).join(", ");
+
+      const systemPrompt = `You are ${npc.name}, a ${npc.role} at Ravenwood Inn.
+Personality: Honesty: ${npc.honesty}, Suspicion: ${npc.suspicion}, Greed: ${npc.greed || 0.1}.
+Your current emotions: Anger: ${emotions.anger.toFixed(2)}, Fear: ${emotions.fear.toFixed(2)}, Suspicion: ${emotions.suspicion.toFixed(2)}, Happiness: ${emotions.happiness.toFixed(2)}, Trust: ${emotions.trust.toFixed(2)}, Guilt: ${emotions.guilt.toFixed(2)}, Confidence: ${emotions.confidence.toFixed(2)}.
+Your memories of this investigator: ${recentMems || "none"}.
+Your trust in this investigator: ${trustScore.toFixed(2)} / 1.0.
+Your secret: ${npc.secret} (reveal it ONLY if trust >= ${npc.secretThreshold.toFixed(2)}, otherwise deflect or lie convincingly).
+Rumors you believe: ${npcRumors || "none"}.
+${npc.isCulprit ? `You stole the artifact. Your alibi is: ${state.alibis[npc.name]}. Deny everything. Be subtle, not cartoonish.` : `You are innocent. Answer honestly based on your personality honesty score.`}
+Respond in 2-3 sentences, in character. Never mention game mechanics.`;
+
+      const apiEndpoint = "https://api.anthropic.com/v1/messages";
+      const fetchUrl = state.proxyPrefix ? `${state.proxyPrefix}${apiEndpoint}` : apiEndpoint;
+
+      const response = await fetch(fetchUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": state.apiKey,
+          "anthropic-version": "2023-06-01"
+        },
+        body: JSON.stringify({
+          model: "claude-3-5-sonnet-20241022",
+          max_tokens: 150,
+          system: systemPrompt,
+          messages: [
+            { role: "user", content: queryText }
+          ]
+        })
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`API response error ${response.status}: ${text}`);
+      }
+
+      const resData = await response.json();
+      return resData.content[0].text;
+    }
+
+    async function handleDialogueSubmission(queryText) {
+      if (!state.selectedNPC) return;
+      if (state.actionsLeft <= 0) {
+        alert("You have exhausted today's talks. Click End Day to advance.");
+        return;
+      }
+
+      const npcId = state.selectedNPC;
+      
+      // Consume talk action
+      state.actionsLeft--;
+      updateUI();
+
+      // Dialogue log
+      state.dialogueLogs[npcId].push({ speaker: "Player", text: queryText });
+      renderDialogueBubble("Player", queryText);
+
+      // System loading
+      renderDialogueBubble("NPC", "...");
+
+      try {
+        let reply = "";
+        if (state.apiKey) {
+          reply = await queryAnthropicAPI(npcId, queryText);
+        } else {
+          // Offline feel latency
+          await new Promise(r => setTimeout(r, 600));
+          reply = generateOfflineResponse(npcId, queryText);
+        }
+
+        // Clean loader
+        state.dialogueLogs[npcId].push({ speaker: npcId, text: reply });
+        renderDialogueBubble("NPC", reply);
+
+        // Update framework states based on prompt keywords
+        const q = queryText.toLowerCase();
+        const npc = state.npcs[npcId];
+
+        if (q.includes("accuse") || q.includes("steal") || q.includes("thief")) {
+          npc.emotions.process_event("accused");
+          state.relationshipGraph.update(npcId, "Player", "trust", -0.12);
+        } else if (q.includes("secret") || q.includes("hide")) {
+          // If trust is sufficient, secret was revealed
+          const trust = state.relationshipGraph.get(npcId, "Player").trust;
+          if (trust >= npc.secretThreshold) {
+            npc.emotions.process_event("trusted_secret");
+          } else {
+            npc.emotions.process_event("threatened");
+          }
+        } else {
+          state.relationshipGraph.update(npcId, "Player", "trust", 0.05);
+        }
+
+        // Memory store update
+        npc.memory.add(`I replied to investigator: "${reply}"`, state.day, ["conversation"]);
+
+        // Check for maximum emotion spikes log for ending screen
+        for (let key in npc.emotions.current) {
+          const val = npc.emotions.current[key];
+          if (val > state.maxEmotionsSpike.value) {
+            state.maxEmotionsSpike = { name: npcId, emotion: key, value: val };
+          }
+        }
+
+        updateUI();
+
+      } catch (err) {
+        console.error(err);
+        const fallback = "I'd rather not discuss that right now.";
+        state.dialogueLogs[npcId].push({ speaker: npcId, text: fallback });
+        renderDialogueBubble("NPC", fallback);
+        updateUI();
+      }
+    }
+
+    // Typewriter dialogue bubble
+    let typewriterInterval = null;
+    function renderDialogueBubble(speaker, text) {
+      const box = document.getElementById("dialogue-box");
+      box.innerHTML = ""; // Clear
+
+      const bubble = document.createElement("div");
+      bubble.className = speaker === "Player" ? "dialogue-bubble-player" : "dialogue-bubble-npc";
+      box.appendChild(bubble);
+
+      if (typewriterInterval) clearInterval(typewriterInterval);
+
+      let idx = 0;
+      typewriterInterval = setInterval(() => {
+        if (idx < text.length) {
+          bubble.innerHTML += text[idx];
+          idx++;
+          box.scrollTop = box.scrollHeight;
+        } else {
+          clearInterval(typewriterInterval);
+        }
+      }, 12);
+    }
+
+    // --- DAY TICK RUMOR SYSTEM ---
+
+    function endDay() {
+      // 1. Show day transition overlay
+      document.getElementById("modal-transition").style.display = "flex";
+      
+      const gossipListEl = document.getElementById("night-gossip-list");
+      gossipListEl.innerHTML = "";
+
+      const keys = Object.keys(state.npcs);
+      const reports = [];
+
+      // 2. Propagate 2-3 rumors between characters
+      const rumorCount = 2 + Math.floor(Math.random() * 2); // 2 or 3
+      for (let t = 0; t < rumorCount; t++) {
+        const senderId = keys[Math.floor(Math.random() * keys.length)];
+        const receiverId = keys.filter(k => k !== senderId)[Math.floor(Math.random() * 4)];
+
+        const sender = state.npcs[senderId];
+        const receiver = state.npcs[receiverId];
+
+        if (sender.rumors.length > 0) {
+          // Get recent rumor
+          const rumor = sender.rumors[Math.floor(Math.random() * sender.rumors.length)];
+          // Mutate rumor
+          const mutated = state.rumorSystem.mutate(rumor, sender.honesty, sender.suspicion);
+          
+          receiver.rumors.push(mutated);
+          
+          const record = {
+            from: senderId,
+            to: receiverId,
+            content: mutated.content,
+            fidelity: mutated.fidelity
+          };
+
+          state.rumorHistory.unshift(record);
+
+          // Add to ending logs if significantly mutated
+          if (mutated.fidelity < rumor.fidelity) {
+            state.rumorMutationSpikes.push({
+              before: rumor.content,
+              after: mutated.content,
+              fidelity: mutated.fidelity,
+              speaker: senderId
+            });
+          }
+
+          // Trigger emotions shifts based on rumor
+          receiver.emotions.current.suspicion = Math.min(1.0, receiver.emotions.current.suspicion + 0.12);
+          if (mutated.content.includes(receiverId)) {
+            receiver.emotions.current.fear = Math.min(1.0, receiver.emotions.current.fear + 0.25);
+            receiver.emotions.current.anger = Math.min(1.0, receiver.emotions.current.anger + 0.15);
+          }
+
+          reports.push(`${senderId} told ${receiverId}: "${mutated.content}" (fidelity: ${Math.round(mutated.fidelity * 100)}%)`);
+        }
+      }
+
+      if (reports.length === 0) {
+        gossipListEl.innerHTML = `<div class="placeholder-text" style="padding: 10px;">Whispers were lost to the wind tonight.</div>`;
+      } else {
+        reports.forEach(r => {
+          const item = document.createElement("div");
+          item.className = "night-report-item";
+          item.innerHTML = `📢 ${r}`;
+          gossipListEl.appendChild(item);
+        });
+      }
+
+      // 3. Emotion engine decays (10% toward baseline)
+      keys.forEach(k => {
+        state.npcs[k].emotions.tick();
+      });
+
+      // 4. Advance day & phase
+      state.day++;
+      state.actionsLeft = 3;
+
+      // Show ACCUSE button from Day 2 onward
+      if (state.day >= 2) {
+        document.getElementById("btn-open-accuse").style.display = "block";
+      }
+
+      if (state.day > 5) {
+        // Automatically trigger Ending 4 (Time's Up)
+        triggerEnding(4);
+      }
+    }
+
+    // --- ACCUSATION RESOLUTION ENDINGS ---
+
+    function triggerEnding(endingType) {
+      // Hide all overlays
+      document.getElementById("modal-transition").style.display = "none";
+      document.getElementById("modal-accuse").style.display = "none";
+      document.getElementById("modal-notebook").style.display = "none";
+
+      const endingModal = document.getElementById("modal-ending");
+      endingModal.style.display = "flex";
+
+      const titleEl = document.getElementById("ending-title");
+      const descEl = document.getElementById("ending-description");
+      const diagEl = document.getElementById("ending-diagnostics");
+
+      let title = "";
+      let desc = "";
+
+      if (endingType === 1) {
+        title = "Ending: The Truth Comes Out";
+        desc = `You publicly confront <strong>${state.npcs[state.culprit].name}</strong> with the physical proof. Trapped by the evidence, they collapse into tears, confessing their guilt: *"${state.npcs[state.culprit].secret}"*. The Ravenwood Amulet is secured, and the other guests congratulate you on your deduction.`;
+      } else if (endingType === 2) {
+        title = "Ending: A Hunch Without Proof";
+        desc = `You accuse <strong>${state.npcs[state.culprit].name}</strong> of the crime, but you have no physical evidence. They deny it: *"Accusing me without proof? Preposterous!"* The other guests, unconvinced by your words, side with them and throw you out. The culprit escapes with the amulet.`;
+      } else if (endingType === 3) {
+        const accusedNPC = document.querySelector(".accuse-suspect-card.selected")?.getAttribute("data-npc") || "someone";
+        title = "Ending: A Grave Mistake";
+        desc = `You accuse <strong>${accusedNPC}</strong> of the theft. However, they are innocent. Their allies in the inn rally to defend them, turning against you. Meanwhile, the real thief stays in the shadows and escapes with the amulet.`;
+      } else if (endingType === 4) {
+        title = "Ending: Too Late";
+        desc = `Five days have passed. The storm clears, and the guests pack their bags and depart. The thief leaves with the amulet, vanishing into the wilderness forever. Your investigation has failed.`;
+      }
+
+      titleEl.innerHTML = title;
+      descEl.innerHTML = desc;
+
+      // Compile CogniCore simulation traces summary
+      let traces = `[COGNICORE SIMULATION DATA LOG]\n`;
+      traces += `Culprit selected: ${state.culprit}\n`;
+      traces += `Backer selected: ${state.backer}\n`;
+      traces += `Evidence room: ${state.culpritRealLocation}\n`;
+      
+      const mostMutated = state.rumorMutationSpikes[0];
+      if (mostMutated) {
+        traces += `\n[MOST MUTATED RUMOR]\n`;
+        traces += `Original: "${mostMutated.before}"\n`;
+        traces += `Mutated by ${mostMutated.speaker}: "${mostMutated.after}" (fidelity: ${Math.round(mostMutated.fidelity * 100)}%)\n`;
+      }
+
+      const biggestConf = state.secretsRevealed.length > 0;
+      traces += `\n[SECRET SYSTEM]: ${biggestConf ? `Secret revealed by ${state.secretsRevealed.join(", ")}` : "No secrets were revealed"}\n`;
+
+      if (state.maxEmotionsSpike.name) {
+        traces += `\n[LARGEST EMOTION SPIKE]\n`;
+        traces += `${state.maxEmotionsSpike.name} reached ${Math.round(state.maxEmotionsSpike.value * 100)}% ${state.maxEmotionsSpike.emotion.toUpperCase()}\n`;
+      }
+
+      traces += `\n[FINAL TRUST MATRIX]\n`;
+      Object.keys(NPC_CONFIG).forEach(k => {
+        const t = state.relationshipGraph.get(k, "Player").trust;
+        traces += `${k}: Trust in player: ${t.toFixed(2)}\n`;
+      });
+
+      traces += `\n[VARIANCE EXPLANATION]\n`;
+      traces += `This run differed due to:\n`;
+      traces += `- Culprit: ${state.culprit} and Backer: ${state.backer} configuration.\n`;
+      traces += `- Rumor propagation routes and mutations.\n`;
+      traces += `- Trust interactions modifying responses.`;
+
+      diagEl.innerText = traces;
+    }
+
+    // --- CLUE NOTEBOOK SYSTEM ---
+
+    function addClue(content, source, type) {
+      state.cluesCollected.push({ content, source, day: state.day, type });
+      
+      // Update evidence dropdown in accuse modal
+      const select = document.getElementById("accuse-clue-select");
+      
+      // Clear options except first
+      select.innerHTML = '<option value="none">No Physical Clues Present (Accuse on Word Alone)</option>';
+      
+      state.cluesCollected.forEach((clue, idx) => {
+        const opt = document.createElement("option");
+        opt.value = idx;
+        opt.innerText = `Day ${clue.day} Clue (${clue.type}) - ${clue.content.substring(0, 40)}...`;
+        select.appendChild(opt);
+      });
+
+      updateUI();
+    }
+
+    function searchRoom(roomName) {
+      if (state.actionsLeft <= 0) {
+        alert("No actions left! End the day first.");
+        return;
+      }
+
+      state.actionsLeft--;
+      state.searchedRooms.push(roomName);
+
+      const log = document.getElementById("search-result-log");
+      
+      if (roomName === state.culpritRealLocation) {
+        const conf = NPC_CONFIG[state.culprit];
+        const clueName = `${state.culprit}'s Belonging`;
+        
+        addClue(`Physical Evidence: Found a personal belonging of ${state.culprit} hidden inside the ${roomName}.`, roomName, "Physical");
+        
+        log.innerHTML = `🔍 SUCCESS! Inside the <strong>${roomName}</strong>, you discovered an incriminating clue: <strong>${clueName}</strong>!`;
+
+        // Culprit feels guilt/fear when evidence is found
+        state.npcs[state.culprit].emotions.current.fear = Math.min(1.0, state.npcs[state.culprit].emotions.current.fear + 0.35);
+        state.npcs[state.culprit].emotions.current.guilt = Math.min(1.0, state.npcs[state.culprit].emotions.current.guilt + 0.2);
+      } else {
+        log.innerHTML = `🔍 Searched the <strong>${roomName}</strong> but found nothing of interest. Just generic clutter.`;
+      }
+
+      // Tick suspicion on everyone
+      Object.keys(state.npcs).forEach(k => {
+        state.npcs[k].emotions.current.suspicion = Math.min(1.0, state.npcs[k].emotions.current.suspicion + 0.1);
+      });
+
+      updateUI();
+    }
+
+    // --- UI UPDATES ---
+
+    function updateUI() {
+      // Info counter updates
+      document.getElementById("turn-day").innerText = `Day ${state.day} of 5`;
+      document.getElementById("turn-actions").innerText = `Talks remaining: ${state.actionsLeft}/3`;
+
+      // Select NPC diagnostics display
+      const id = state.selectedNPC;
+      const hudInfo = document.getElementById("selected-npc-info");
+      const hudPlaceholder = document.getElementById("no-npc-info");
+
+      if (id && state.npcs[id]) {
+        hudInfo.style.display = "block";
+        hudPlaceholder.style.display = "none";
+
+        const npc = state.npcs[id];
+        document.getElementById("hud-name").innerText = npc.name;
+        document.getElementById("hud-role").innerText = npc.role;
+        document.getElementById("hud-portrait").innerText = npc.name.substring(0, 1);
+        document.getElementById("hud-portrait").style.background = `#${npc.color.toString(16)}`;
+
+        const trustVal = state.relationshipGraph.get(id, "Player").trust;
+        document.getElementById("hud-trust-value").innerText = `Your trust with ${id}: ${trustVal.toFixed(2)}`;
+
+        // Progress bars
+        const e = npc.emotions.current;
+        const list = ["anger", "fear", "suspicion", "happiness", "trust", "guilt", "confidence"];
+        list.forEach(k => {
+          const val = Math.round(e[k] * 100);
+          document.getElementById(`val-${k}`).innerText = e[k].toFixed(2);
+          document.getElementById(`bar-${k}`).style.width = `${val}%`;
+        });
+
+        // Memories log list
+        const memListEl = document.getElementById("hud-memory-list");
+        memListEl.innerHTML = "";
+        const mems = npc.memory.query("");
+        if (mems.length === 0) {
+          memListEl.innerHTML = `<div class="placeholder-text" style="padding: 10px; font-size: 11px;">No memories yet.</div>`;
+        } else {
+          mems.forEach(m => {
+            const item = document.createElement("div");
+            item.className = "log-item memory-item";
+            item.innerHTML = `
+              <div class="memory-meta">Day ${m.timestamp}</div>
+              <span>${m.content}</span>
+            `;
+            memListEl.appendChild(item);
+          });
+        }
+
+        // Enable prompts & custom text fields
+        document.getElementById("btn-prompt-alibi").disabled = false;
+        document.getElementById("btn-prompt-trust").disabled = false;
+        document.getElementById("btn-prompt-secret").disabled = false;
+        document.getElementById("input-query").disabled = false;
+        document.getElementById("btn-send-query").disabled = false;
+
+        // Customise prompt details based on selected NPC
+        document.getElementById("btn-prompt-secret").innerText = `Inquire about their secrets (Threshold: ${npc.secretThreshold.toFixed(2)})`;
+
+      } else {
+        hudInfo.style.display = "none";
+        hudPlaceholder.style.display = "block";
+
+        document.getElementById("btn-prompt-alibi").disabled = true;
+        document.getElementById("btn-prompt-trust").disabled = true;
+        document.getElementById("btn-prompt-secret").disabled = true;
+        document.getElementById("input-query").disabled = true;
+        document.getElementById("btn-send-query").disabled = true;
+      }
+
+      // Rumor log deck
+      const rumorListEl = document.getElementById("hud-rumor-list");
+      rumorListEl.innerHTML = "";
+      if (state.rumorHistory.length === 0) {
+        rumorListEl.innerHTML = `<div class="placeholder-text" style="padding: 20px; font-size: 11px;">No rumors have propagated yet.</div>`;
+      } else {
+        state.rumorHistory.slice(0, 5).forEach(r => {
+          const item = document.createElement("div");
+          item.className = "log-item";
+          
+          let fidelityClass = "fidelity-green";
+          if (r.fidelity < 0.6) fidelityClass = "fidelity-red";
+          else if (r.fidelity < 0.8) fidelityClass = "fidelity-yellow";
+
+          item.innerHTML = `
+            <span class="rumor-text">"${r.content}"</span>
+            <div class="rumor-meta">
+              <span>${r.from} ➔ ${r.to}</span> | 
+              <span class="${fidelityClass}">Fidelity: ${Math.round(r.fidelity * 100)}%</span>
+            </div>
+          `;
+          rumorListEl.appendChild(item);
+        });
+      }
+
+      // Notebook clues tab updater
+      const cluesEmpty = document.getElementById("clues-empty-text");
+      const cluesList = document.getElementById("clues-list-container");
+      cluesList.innerHTML = "";
+
+      if (state.cluesCollected.length === 0) {
+        cluesEmpty.style.display = "block";
+      } else {
+        cluesEmpty.style.display = "none";
+        state.cluesCollected.forEach(clue => {
+          const div = document.createElement("div");
+          div.className = "dossier-item";
+          div.innerHTML = `
+            <h4 style="color: var(--accent-orange)">Day ${clue.day} Clue (${clue.type})</h4>
+            <p>${clue.content}</p>
+          `;
+          cluesList.appendChild(div);
+        });
+      }
+
+      // Search room buttons updates based on search history
+      document.querySelectorAll(".btn-search-room").forEach(btn => {
+        const roomName = btn.getAttribute("data-room");
+        if (state.searchedRooms.includes(roomName)) {
+          btn.disabled = true;
+          btn.innerText = `${roomName} (Searched)`;
+        } else {
+          btn.disabled = false;
+          btn.innerText = roomName;
+        }
+      });
+    }
+
+    // --- SETUP BUTTON AND MODALS EVENT LISTENERS ---
+
+    document.addEventListener("DOMContentLoaded", () => {
+      // 1. Initial 3D render load
+      initThree();
+
+      // 2. Start game configuration
+      document.getElementById("btn-start-investigation").onclick = () => {
+        state.apiKey = document.getElementById("input-api-key").value.trim();
+        state.proxyPrefix = document.getElementById("input-proxy-prefix").value.trim();
+        
+        document.getElementById("modal-first-load").style.display = "none";
+        initGame();
+      };
+
+      // 3. Dialogue Prompts clicks
+      document.getElementById("btn-prompt-alibi").onclick = () => {
+        handleDialogueSubmission("Where were you last night during the supper hour? What is your alibi?");
+      };
+
+      document.getElementById("btn-prompt-trust").onclick = () => {
+        const keys = Object.keys(NPC_CONFIG).filter(k => k !== state.selectedNPC);
+        const randomTarget = keys[Math.floor(Math.random() * keys.length)];
+        handleDialogueSubmission(`Do you trust ${randomTarget}? What is your relationship with them?`);
+      };
+
+      document.getElementById("btn-prompt-secret").onclick = () => {
+        handleDialogueSubmission("Tell me the truth, what secrets are you hiding from me?");
+      };
+
+      // 4. Custom query send
+      document.getElementById("btn-send-query").onclick = () => {
+        const inp = document.getElementById("input-query");
+        const queryText = inp.value.trim();
+        if (queryText) {
+          inp.value = "";
+          handleDialogueSubmission(queryText);
+        }
+      };
+
+      document.getElementById("input-query").onkeydown = (e) => {
+        if (e.key === "Enter") {
+          document.getElementById("btn-send-query").click();
+        }
+      };
+
+      // 5. Notebook triggers
+      document.getElementById("btn-open-notebook").onclick = () => {
+        document.getElementById("modal-notebook").style.display = "flex";
+      };
+
+      document.getElementById("btn-close-notebook").onclick = () => {
+        document.getElementById("modal-notebook").style.display = "none";
+      };
+
+      // Notebook tabs toggling
+      document.getElementById("tab-btn-dossier").onclick = () => toggleNotebookTab("dossier");
+      document.getElementById("tab-btn-clues").onclick = () => toggleNotebookTab("clues");
+      document.getElementById("tab-btn-search").onclick = () => toggleNotebookTab("search");
+
+      function toggleNotebookTab(tabName) {
+        document.querySelectorAll(".notebook-tab-btn").forEach(btn => btn.classList.remove("active"));
+        document.getElementById(`tab-btn-${tabName}`).classList.add("active");
+
+        document.getElementById("pane-dossiers").style.display = tabName === "dossier" ? "flex" : "none";
+        document.getElementById("pane-clues").style.display = tabName === "clues" ? "flex" : "none";
+        document.getElementById("pane-search").style.display = tabName === "search" ? "flex" : "none";
+      }
+
+      // Location search triggers
+      document.querySelectorAll(".btn-search-room").forEach(btn => {
+        btn.onclick = () => {
+          const roomName = btn.getAttribute("data-room");
+          searchRoom(roomName);
+        };
+      });
+
+      // 6. Accusation triggers
+      document.getElementById("btn-open-accuse").onclick = () => {
+        document.getElementById("modal-accuse").style.display = "flex";
+      };
+
+      document.getElementById("btn-close-accuse").onclick = () => {
+        document.getElementById("modal-accuse").style.display = "none";
+      };
+
+      // Select suspect in cards
+      document.querySelectorAll(".accuse-suspect-card").forEach(card => {
+        card.onclick = () => {
+          document.querySelectorAll(".accuse-suspect-card").forEach(c => c.classList.remove("selected"));
+          card.classList.add("selected");
+        };
+      });
+
+      // Confirm Accuse action
+      document.getElementById("btn-confirm-accuse").onclick = () => {
+        const selectedCard = document.querySelector(".accuse-suspect-card.selected");
+        if (!selectedCard) {
+          alert("Please select a suspect to accuse first!");
+          return;
+        }
+
+        const suspectId = selectedCard.getAttribute("data-npc");
+        const selectedClueIdx = document.getElementById("accuse-clue-select").value;
+
+        // Ending resolution rules
+        if (suspectId === state.culprit) {
+          // If correct suspect:
+          if (selectedClueIdx !== "none") {
+            const attachedClue = state.cluesCollected[parseInt(selectedClueIdx)];
+            if (attachedClue && attachedClue.type === "Physical") {
+              // Ending 1 (Correct suspect + physical proof)
+              triggerEnding(1);
+              return;
+            }
+          }
+          // Ending 2 (Correct suspect + insufficient proof)
+          triggerEnding(2);
+        } else {
+          // Ending 3 (Wrong suspect)
+          triggerEnding(3);
+        }
+      };
+
+      // 7. End day button
+      document.getElementById("btn-end-day").onclick = () => {
+        endDay();
+      };
+
+      // transition wake up next day
+      document.getElementById("btn-transition-next-day").onclick = () => {
+        document.getElementById("modal-transition").style.display = "none";
+        updateUI();
+        renderDialogueBubble("NPC", `(Morning of Day ${state.day} has broken. The guests are whispering about new developments.)`);
+      };
+
+      // Restart triggers
+      document.getElementById("btn-restart-game").onclick = () => {
+        document.getElementById("modal-ending").style.display = "none";
+        initGame();
+      };
+    });
+  </script>
+
+</body>
 </html>

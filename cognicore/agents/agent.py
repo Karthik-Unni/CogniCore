@@ -30,7 +30,27 @@ class Character:
         self.metadata = metadata or {}
         
         # Initialize sub-systems
-        self.emotions = EmotionEngine()
+        # Derive custom emotional baselines and decay rates from personality
+        custom_baselines = {
+            "anger": round(0.15 * personality.get("aggression", 0.5), 3),
+            "fear": round(0.15 * (1.0 - personality.get("aggression", 0.5)), 3),
+            "suspicion": round(0.1 + 0.3 * (1.0 - personality.get("honesty", 0.5)), 3),
+            "happiness": round(0.5 - 0.2 * personality.get("greed", 0.5), 3),
+            "trust": round(0.6 - 0.3 * (1.0 - personality.get("honesty", 0.5)), 3),
+            "guilt": 0.25 if self.metadata.get("is_killer", False) else 0.0,
+            "confidence": round(0.3 + 0.4 * personality.get("aggression", 0.5), 3)
+        }
+        
+        custom_decay_rates = {
+            "anger": round(0.08 + 0.04 * (1.0 - personality.get("aggression", 0.5)), 3),
+            "fear": round(0.06 + 0.04 * personality.get("aggression", 0.5), 3),
+            "suspicion": round(0.015 + 0.01 * personality.get("honesty", 0.5), 3),
+            "happiness": round(0.04 + 0.02 * personality.get("greed", 0.5), 3),
+            "trust": round(0.008 + 0.004 * (1.0 - personality.get("honesty", 0.5)), 3),
+            "guilt": 0.002 if self.metadata.get("is_killer", False) else 0.005,
+            "confidence": round(0.015 + 0.01 * (1.0 - personality.get("aggression", 0.5)), 3)
+        }
+        self.emotions = EmotionEngine(baselines=custom_baselines, decay_rates=custom_decay_rates)
         self.relationships = RelationshipManager(agent_id, relationship_baselines)
         self.memory = MemoryManager(agent_id, vector_store)
         self.rumors = RumorTracker(agent_id)
