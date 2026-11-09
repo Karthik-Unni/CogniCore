@@ -290,6 +290,5 @@ tests/                   # 6 unit/integration tests, all passing as of this writ
 
 ## 🤝 Contributing
 
-Issues and PRs welcome — especially around decoupling the demo-specific logic from the core SDK classes noted above, or adding new LLM provider adapters.
-
+Issues and PRs welcome
 ---
